@@ -41,7 +41,7 @@ class DeeperGCN(torch.nn.Module):
         self.layers = torch.nn.ModuleList()
         for i in range(1, num_layers + 1):
             conv = GENConv(hidden_channels, hidden_channels, aggr='softmax',
-                           t=1.0, learn_t=True, num_layers=2, norm='none')
+                           t=1.0, learn_t=True, num_layers=2, norm='layer')
             norm = LayerNorm(hidden_channels, elementwise_affine=True)
             act = ReLU(inplace=True)
 
