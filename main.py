@@ -5,6 +5,7 @@ from torch.nn import Linear, LayerNorm, ReLU
 from torch_scatter import scatter
 from ogb.nodeproppred import PygNodePropPredDataset, Evaluator
 
+from gate_conv import GateConv
 from gen_conv import GENConv
 from torch_geometric.nn import DeepGCNLayer
 from torch_geometric.data import RandomNodeSampler
@@ -40,8 +41,7 @@ class DeeperGCN(torch.nn.Module):
 
         self.layers = torch.nn.ModuleList()
         for i in range(1, num_layers + 1):
-            conv = GENConv(hidden_channels, hidden_channels, aggr='softmax',
-                           t=1.0, learn_t=True, num_layers=2, norm='layer', msg_norm=True)
+            conv = GateConv(hidden_channels, hidden_channels, edge_channels=hidden_channels)
             norm = LayerNorm(hidden_channels, elementwise_affine=True)
             act = ReLU(inplace=True)
 
