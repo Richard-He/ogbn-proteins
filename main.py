@@ -45,7 +45,7 @@ class DeeperGCN(torch.nn.Module):
             norm = LayerNorm(hidden_channels, elementwise_affine=True)
             act = ReLU(inplace=True)
 
-            layer = DeepGCNLayer(conv, norm, act, block='res+', dropout=0.0,
+            layer = DeepGCNLayer(conv, norm, act, block='res+', dropout=0.1,
                                  ckpt_grad=i % 3)
             self.layers.append(layer)
 
@@ -61,13 +61,13 @@ class DeeperGCN(torch.nn.Module):
             x = layer(x, edge_index, edge_attr)
 
         x = self.layers[0].act(self.layers[0].norm(x))
-        x = F.dropout(x, p=0.0, training=self.training)
+        x = F.dropout(x, p=0.1, training=self.training)
 
         return self.lin(x)
 
 
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-model = DeeperGCN(hidden_channels=64, num_layers=28).to(device)
+model = DeeperGCN(hidden_channels=64, num_layers=2).to(device)
 optimizer = torch.optim.Adam(model.parameters(), lr=0.01)
 criterion = torch.nn.BCEWithLogitsLoss()
 evaluator = Evaluator('ogbn-proteins')
