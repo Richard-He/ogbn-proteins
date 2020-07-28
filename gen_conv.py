@@ -2,15 +2,18 @@ from typing import Optional, List, Union
 from torch_geometric.typing import OptPairTensor, Adj, Size, OptTensor
 
 import torch
+import torch.nn as nn
 from torch import Tensor
 from torch.nn import Parameter
 import torch.nn.functional as F
 from torch.nn import Sequential, Linear, ReLU, Dropout
 from torch.nn import BatchNorm1d, LayerNorm, InstanceNorm1d
 from torch_sparse import SparseTensor
-from torch_scatter import scatter, scatter_softmax
+from torch_scatter import scatter, scatter_softmax, scatter_mean, scatter_max, scatter_min
 from torch_geometric.nn.conv import MessagePassing
 from torch_geometric.nn.norm import MessageNorm
+
+from scatter_std_func import scatter_std
 
 
 def reset(nn):
@@ -111,7 +114,7 @@ class GENConv(MessagePassing):
         self.aggr = aggr
         self.eps = eps
 
-        assert aggr in ['softmax', 'softmax_sg', 'power']
+        assert aggr in ['softmax', 'softmax_sg', 'power', 'stat']
 
         channels = [in_channels]
         for i in range(num_layers - 1):
@@ -133,6 +136,9 @@ class GENConv(MessagePassing):
             self.p = Parameter(torch.Tensor([p]), requires_grad=True)
         else:
             self.p = p
+
+        self.lin_stat = nn.Linear(3, 1)
+
 
     def reset_parameters(self):
         reset(self.mlp)
@@ -188,6 +194,19 @@ class GENConv(MessagePassing):
                                   dim=self.node_dim).detach()
             return scatter(inputs * out, index, dim=self.node_dim,
                            dim_size=dim_size, reduce='sum')
+        elif self.aggr == 'stat':
+            _mean = scatter_mean(inputs, index, dim=self.node_dim, dim_size=dim_size)
+            _std = scatter_std(inputs, index, dim=self.node_dim, dim_size=dim_size)
+            _min = scatter_min(inputs, index, dim=self.node_dim, dim_size=dim_size)[0]
+            _max = scatter_max(inputs, index, dim=self.node_dim, dim_size=dim_size)[0]
+
+            _mean = _mean.unsqueeze(dim=-1)
+            _min = _min.unsqueeze(dim=-1)
+            _max = _max.unsqueeze(dim=-1)
+
+            stat = torch.cat([_mean, _min, _max], dim=-1)
+            stat = self.lin_stat(stat).squeeze(dim=-1)
+            return stat
 
         else:
             min_value, max_value = 1e-7, 1e1

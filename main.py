@@ -5,7 +5,6 @@ from torch.nn import Linear, LayerNorm, ReLU
 from torch_scatter import scatter
 from ogb.nodeproppred import PygNodePropPredDataset, Evaluator
 
-from gate_conv import GateConv
 from gen_conv import GENConv
 from torch_geometric.nn import DeepGCNLayer
 from torch_geometric.data import RandomNodeSampler
@@ -27,9 +26,9 @@ for split in ['train', 'valid', 'test']:
     mask[splitted_idx[split]] = True
     data[f'{split}_mask'] = mask
 
-train_loader = RandomNodeSampler(data, num_parts=100, shuffle=True,
+train_loader = RandomNodeSampler(data, num_parts=40, shuffle=True,
                                  num_workers=5)
-test_loader = RandomNodeSampler(data, num_parts=10, num_workers=5)
+test_loader = RandomNodeSampler(data, num_parts=5, num_workers=5)
 
 
 class DeeperGCN(torch.nn.Module):
@@ -41,7 +40,8 @@ class DeeperGCN(torch.nn.Module):
 
         self.layers = torch.nn.ModuleList()
         for i in range(1, num_layers + 1):
-            conv = GateConv(hidden_channels, hidden_channels, edge_channels=hidden_channels)
+            conv = GENConv(hidden_channels, hidden_channels, aggr='stat',
+                           t=1.0, learn_t=True, num_layers=2, norm='layer', msg_norm=True)
             norm = LayerNorm(hidden_channels, elementwise_affine=True)
             act = ReLU(inplace=True)
 
