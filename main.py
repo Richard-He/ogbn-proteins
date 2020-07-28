@@ -27,9 +27,9 @@ for split in ['train', 'valid', 'test']:
     mask[splitted_idx[split]] = True
     data[f'{split}_mask'] = mask
 
-train_loader = RandomNodeSampler(data, num_parts=40, shuffle=True,
+train_loader = RandomNodeSampler(data, num_parts=100, shuffle=True,
                                  num_workers=5)
-test_loader = RandomNodeSampler(data, num_parts=5, num_workers=5)
+test_loader = RandomNodeSampler(data, num_parts=10, num_workers=5)
 
 
 class DeeperGCN(torch.nn.Module):
