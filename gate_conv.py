@@ -16,8 +16,7 @@ class GateConv(MessagePassing):
         self.weight_n = nn.Parameter(torch.Tensor(in_channels, out_channels))
         self.weight_e = nn.Parameter(torch.Tensor(edge_channels, out_channels))
 
-        self.u = nn.Parameter(torch.Tensor(out_channels, out_channels))
-        self.v = nn.Parameter(torch.Tensor(out_channels, out_channels))
+        self.lin_gate = nn.Linear(out_channels*3, out_channels)
 
         self.layer_norm = nn.LayerNorm(normalized_shape=out_channels)
 
@@ -26,8 +25,6 @@ class GateConv(MessagePassing):
     def reset_parameters(self):
         nn.init.xavier_uniform_(self.weight_n)
         nn.init.xavier_uniform_(self.weight_e)
-        nn.init.xavier_uniform_(self.u)
-        nn.init.xavier_uniform_(self.v)
 
     def forward(self, x, edge_index, edge_weight=None, size=None):
         """"""
@@ -40,17 +37,11 @@ class GateConv(MessagePassing):
 
         return self.propagate(edge_index, size=size, x=x, edge_weight=edge_weight)
 
-    def message(self, edge_index_i, x_i, x_j, edge_weight):
-        x_i = torch.matmul(x_i, self.u)
-        x_j = torch.matmul(x_j, self.v)
-
-        gate = torch.sigmoid(x_i * x_j * edge_weight)
+    def message(self, x_i, x_j, edge_weight):
+        gate = torch.cat([x_i, x_j, edge_weight], dim=-1)
+        gate = torch.tanh(self.lin_gate(gate))
 
         return x_j * gate
 
-    def update(self, aggr_out, x):
-        aggr_out = torch.matmul(x, self.u) + aggr_out
-
-        aggr_out = self.layer_norm(aggr_out)
-
-        return x + aggr_out
+    def update(self, aggr_out):
+        return aggr_out
