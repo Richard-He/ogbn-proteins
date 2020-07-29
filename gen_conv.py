@@ -13,8 +13,6 @@ from torch_scatter import scatter, scatter_softmax, scatter_mean, scatter_max, s
 from torch_geometric.nn.conv import MessagePassing
 from torch_geometric.nn.norm import MessageNorm
 
-from scatter_std_func import scatter_std
-
 
 def reset(nn):
     def _reset(item):
@@ -139,7 +137,6 @@ class GENConv(MessagePassing):
 
         self.lin_stat = nn.Linear(3, 1)
 
-
     def reset_parameters(self):
         reset(self.mlp)
         if self.msg_norm is not None:
@@ -195,10 +192,12 @@ class GENConv(MessagePassing):
             return scatter(inputs * out, index, dim=self.node_dim,
                            dim_size=dim_size, reduce='sum')
         elif self.aggr == 'stat':
-            _mean = scatter_mean(inputs, index, dim=self.node_dim, dim_size=dim_size)
-            _std = scatter_std(inputs, index, dim=self.node_dim, dim_size=dim_size)
-            _min = scatter_min(inputs, index, dim=self.node_dim, dim_size=dim_size)[0]
-            _max = scatter_max(inputs, index, dim=self.node_dim, dim_size=dim_size)[0]
+            _mean = scatter_mean(
+                inputs, index, dim=self.node_dim, dim_size=dim_size)
+            _min = scatter_min(
+                inputs, index, dim=self.node_dim, dim_size=dim_size)[0]
+            _max = scatter_max(
+                inputs, index, dim=self.node_dim, dim_size=dim_size)[0]
 
             _mean = _mean.unsqueeze(dim=-1)
             _min = _min.unsqueeze(dim=-1)
