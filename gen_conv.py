@@ -9,7 +9,7 @@ import torch.nn.functional as F
 from torch.nn import Sequential, Linear, ReLU, Dropout
 from torch.nn import BatchNorm1d, LayerNorm, InstanceNorm1d
 from torch_sparse import SparseTensor
-from torch_scatter import scatter, scatter_softmax, scatter_mean, scatter_max, scatter_min
+from torch_scatter import scatter, scatter_softmax, scatter_mean, scatter_max, scatter_min, scatter_std
 from torch_geometric.nn.conv import MessagePassing
 from torch_geometric.nn.norm import MessageNorm
 
@@ -135,7 +135,7 @@ class GENConv(MessagePassing):
         else:
             self.p = p
 
-        self.lin_stat = nn.Linear(3, 1)
+        self.lin_stat = nn.Linear(out_channels*4, out_channels)
 
     def reset_parameters(self):
         reset(self.mlp)
@@ -194,17 +194,16 @@ class GENConv(MessagePassing):
         elif self.aggr == 'stat':
             _mean = scatter_mean(
                 inputs, index, dim=self.node_dim, dim_size=dim_size)
+            _std = scatter_std(
+                inputs, index, dim=self.node_dim, dim_size=dim_size
+            ).detach()
             _min = scatter_min(
                 inputs, index, dim=self.node_dim, dim_size=dim_size)[0]
             _max = scatter_max(
                 inputs, index, dim=self.node_dim, dim_size=dim_size)[0]
 
-            _mean = _mean.unsqueeze(dim=-1)
-            _min = _min.unsqueeze(dim=-1)
-            _max = _max.unsqueeze(dim=-1)
-
-            stat = torch.cat([_mean, _min, _max], dim=-1)
-            stat = self.lin_stat(stat).squeeze(dim=-1)
+            stat = torch.cat([_mean, _std, _min, _max], dim=-1)
+            stat = self.lin_stat(stat)
             return stat
 
         else:

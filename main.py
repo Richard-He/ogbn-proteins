@@ -18,7 +18,7 @@ data.y = data.y.to(torch.float)
 
 # Initialize features of nodes by aggregating edge features.
 row, col = data.edge_index
-data.x = scatter(data.edge_attr, col, 0, dim_size=data.num_nodes, reduce='add')
+data.x = scatter(data.edge_attr, col, 0, dim_size=data.num_nodes, reduce='mean')
 
 # Set split indices to masks.
 for split in ['train', 'valid', 'test']:
