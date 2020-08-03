@@ -135,7 +135,7 @@ class GENConv(MessagePassing):
         else:
             self.p = p
 
-        self.lin_stat = nn.Linear(out_channels*4, out_channels)
+        self.lin_stat = nn.Linear(4, 1)
 
     def reset_parameters(self):
         reset(self.mlp)
@@ -202,8 +202,14 @@ class GENConv(MessagePassing):
             _max = scatter_max(
                 inputs, index, dim=self.node_dim, dim_size=dim_size)[0]
 
+            _mean = _mean.unsqueeze(dim=-1)
+            _std = _std.unsqueeze(dim=-1)
+            _min = _min.unsqueeze(dim=-1)
+            _max = _max.unsqueeze(dim=-1)
+
             stat = torch.cat([_mean, _std, _min, _max], dim=-1)
             stat = self.lin_stat(stat)
+            stat = stat.squeeze(dim=-1)
             return stat
 
         else:
