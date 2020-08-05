@@ -9,10 +9,14 @@ from gen_conv import GENConv
 from torch_geometric.nn import DeepGCNLayer
 from torch_geometric.data import RandomNodeSampler
 
+from meta_net import Record, MetaNet
+
 
 dataset = PygNodePropPredDataset('ogbn-proteins', root='../data')
 splitted_idx = dataset.get_idx_split()
 data = dataset[0]
+
+data.n_id = torch.arange(data.num_nodes)
 data.node_species = None
 data.y = data.y.to(torch.float)
 
@@ -28,7 +32,7 @@ for split in ['train', 'valid', 'test']:
 
 train_loader = RandomNodeSampler(data, num_parts=40, shuffle=True,
                                  num_workers=5)
-test_loader = RandomNodeSampler(data, num_parts=5, num_workers=5)
+test_loader = RandomNodeSampler(data, num_parts=10, num_workers=5)
 
 
 class DeeperGCN(torch.nn.Module):
@@ -68,27 +72,48 @@ class DeeperGCN(torch.nn.Module):
 
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 model = DeeperGCN(hidden_channels=64, num_layers=28).to(device)
+
 optimizer = torch.optim.Adam(model.parameters(), lr=0.01)
-criterion = torch.nn.BCEWithLogitsLoss()
+criterion = torch.nn.BCEWithLogitsLoss(reduction='none')
 evaluator = Evaluator('ogbn-proteins')
+
+recorder = Record(num_nodes=data.num_nodes, num_classes=data.y.size(-1))
+
+meta_net = MetaNet(input_dim=data.y.size(-1) + 2, hidden_dim=32).to(device)
+meta_optimizer = torch.optim.Adam(meta_net.parameters(), lr=0.01)
 
 
 def train(epoch):
     model.train()
+    meta_net.eval()
 
     pbar = tqdm(total=len(train_loader))
     pbar.set_description(f'Training epoch: {epoch:04d}')
 
     total_loss = total_examples = 0
     for data in train_loader:
-        optimizer.zero_grad()
         data = data.to(device)
-        out = model(data.x, data.edge_index, data.edge_attr)
-        loss = criterion(out[data.train_mask], data.y[data.train_mask])
-        loss.backward()
+
+        record = recorder.get_record(data.n_id).to(device)
+        weights = meta_net(record, data.edge_index)
+        weights = weights / weights.mean()
+
+        out = model(data.x * weights, data.edge_index, data.edge_attr)
+
+        loss = criterion(out[data.train_mask],
+                         data.y[data.train_mask]).mean(dim=-1)
+
+        optimizer.zero_grad()
+        loss.mean().backward()
         optimizer.step()
 
-        total_loss += float(loss) * int(data.train_mask.sum())
+        # update records
+        recorder.update_output(data.n_id[data.train_mask].to(
+            'cpu'), out[data.train_mask].detach().to('cpu'))
+        recorder.update_train_loss(
+            data.n_id[data.train_mask].to('cpu'), loss.detach().to('cpu'))
+
+        total_loss += float(loss.mean()) * int(data.train_mask.sum())
         total_examples += int(data.train_mask.sum())
 
         pbar.update(1)
@@ -98,9 +123,9 @@ def train(epoch):
     return total_loss / total_examples
 
 
-@torch.no_grad()
 def test():
     model.eval()
+    meta_net.train()
 
     y_true = {'train': [], 'valid': [], 'test': []}
     y_pred = {'train': [], 'valid': [], 'test': []}
@@ -110,7 +135,23 @@ def test():
 
     for data in test_loader:
         data = data.to(device)
-        out = model(data.x, data.edge_index, data.edge_attr)
+
+        record = recorder.get_record(data.n_id).to(device)
+        weights = meta_net(record, data.edge_index)
+        weights = weights / weights.mean()
+
+        out = model(data.x * weights, data.edge_index, data.edge_attr)
+
+        mask = data.train_mask + data.valid_mask
+
+        loss = criterion(out[mask], data.y[mask]).mean(dim=-1)
+
+        meta_optimizer.zero_grad()
+        loss.mean().backward()
+        meta_optimizer.step()
+
+        recorder.update_output(data.n_id[mask], out[mask].detach().to('cpu'))
+        recorder.update_val_loss(data.n_id[mask], loss.detach().to('cpu'))
 
         for split in y_true.keys():
             mask = data[f'{split}_mask']
