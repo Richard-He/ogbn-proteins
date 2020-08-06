@@ -50,10 +50,10 @@ class Record(nn.Module):
 
     def get_record(self, n_id):
         train_loss = self.train_loss[n_id].view(-1, 1)
-        train_loss = torch.argsort(train_loss, dim=0)
+        train_loss = torch.argsort(train_loss, dim=0).float()
 
         val_loss = self.val_loss[n_id].view(-1, 1)
-        val_loss = torch.argsort(val_loss, dim=0)
+        val_loss = torch.argsort(val_loss, dim=0).float()
 
         outputs = self.outputs[n_id]
 
