@@ -33,9 +33,11 @@ class MetaNet(nn.Module):
 class Record(nn.Module):
     def __init__(self, num_nodes, num_classes):
         super(Record, self).__init__()
-        self.register_buffer('outputs', torch.zeros(num_nodes, num_classes))
+        self.register_buffer('outputs', torch.Tensor(num_nodes, num_classes))
         self.register_buffer('train_loss', torch.ones(num_nodes))
         self.register_buffer('val_loss', torch.ones(num_nodes))
+
+        self.outputs.uniform_()
 
         self.alpha = 0.75
 
@@ -51,11 +53,13 @@ class Record(nn.Module):
     def get_record(self, n_id):
         train_loss = self.train_loss[n_id].view(-1, 1)
         train_loss = torch.argsort(train_loss, dim=0).float()
+        train_loss = train_loss / train_loss.max()
 
         val_loss = self.val_loss[n_id].view(-1, 1)
         val_loss = torch.argsort(val_loss, dim=0).float()
+        val_loss = val_loss / val_loss.max()
 
-        outputs = self.outputs[n_id]
+        outputs = torch.sigmoid(self.outputs[n_id])
 
         record = torch.cat([train_loss, val_loss, outputs], dim=-1)
 
