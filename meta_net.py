@@ -34,10 +34,10 @@ class Record(nn.Module):
     def __init__(self, num_nodes, num_classes):
         super(Record, self).__init__()
         self.register_buffer('outputs', torch.zeros(num_nodes, num_classes))
-        self.register_buffer('train_loss', torch.zeros(num_nodes))
-        self.register_buffer('val_loss', torch.zeros(num_nodes))
+        self.register_buffer('train_loss', torch.ones(num_nodes))
+        self.register_buffer('val_loss', torch.ones(num_nodes))
 
-        self.alpha = 0.7
+        self.alpha = 0.75
 
     def update_output(self, n_id, outputs):
         self.outputs[n_id] = outputs
@@ -50,7 +50,11 @@ class Record(nn.Module):
 
     def get_record(self, n_id):
         train_loss = self.train_loss[n_id].view(-1, 1)
+        train_loss = torch.argsort(train_loss, dim=0)
+
         val_loss = self.val_loss[n_id].view(-1, 1)
+        val_loss = torch.argsort(val_loss, dim=0)
+
         outputs = self.outputs[n_id]
 
         record = torch.cat([train_loss, val_loss, outputs], dim=-1)
