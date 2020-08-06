@@ -98,7 +98,8 @@ def train(epoch):
         weights = meta_net(record, data.edge_index)
         weights = weights / weights.mean()
 
-        out = model(data.x * weights, data.edge_index, data.edge_attr)
+        # out = model(data.x * weights, data.edge_index, data.edge_attr)
+        out = model(data.x, data.edge_index, data.edge_attr)
 
         loss = criterion(out[data.train_mask],
                          data.y[data.train_mask]).mean(dim=-1)
@@ -140,15 +141,16 @@ def test():
         weights = meta_net(record, data.edge_index)
         weights = weights / weights.mean()
 
-        out = model(data.x * weights, data.edge_index, data.edge_attr)
+        # out = model(data.x * weights, data.edge_index, data.edge_attr)
+        out = model(data.x, data.edge_index, data.edge_attr)
 
         mask = data.train_mask + data.valid_mask
 
         loss = criterion(out[mask], data.y[mask]).mean(dim=-1)
 
-        meta_optimizer.zero_grad()
-        loss.mean().backward()
-        meta_optimizer.step()
+        # meta_optimizer.zero_grad()
+        # loss.mean().backward()
+        # meta_optimizer.step()
 
         recorder.update_output(data.n_id[mask], out[mask].detach().to('cpu'))
         recorder.update_val_loss(data.n_id[mask], loss.detach().to('cpu'))
