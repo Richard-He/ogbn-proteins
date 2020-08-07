@@ -79,7 +79,7 @@ evaluator = Evaluator('ogbn-proteins')
 
 recorder = Record(num_nodes=data.num_nodes, num_classes=data.y.size(-1))
 
-meta_net = MetaNet(input_dim=data.y.size(-1) + 2, hidden_dim=32).to(device)
+meta_net = MetaNet(input_dim=data.y.size(-1) + 2*2, hidden_dim=32).to(device)
 meta_optimizer = torch.optim.Adam(meta_net.parameters(), lr=0.001)
 
 

@@ -9,6 +9,8 @@ class MetaNet(nn.Module):
     def __init__(self, input_dim, hidden_dim):
         super(MetaNet, self).__init__()
 
+        self.rank_em = nn.Embedding(100000, 2)
+
         self.conv1 = SAGEConv(input_dim, hidden_dim)
         self.drop1 = nn.Dropout(p=0.1)
 
@@ -18,6 +20,14 @@ class MetaNet(nn.Module):
         self.lin = nn.Linear(hidden_dim * 2, 1)
 
     def forward(self, x, edge_index):
+        rank = x[:, :2]
+        output = x[:, 2:]
+
+        rank = self.rank_em(rank.long())
+        rank = rank.view(rank.size(0), -1)
+
+        x = torch.cat([rank, output], dim=-1)
+
         x1 = F.leaky_relu(self.conv1(x, edge_index))
         x1 = self.drop1(x1)
 
