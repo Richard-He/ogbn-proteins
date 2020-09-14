@@ -36,8 +36,14 @@ class Record(nn.Module):
         self.register_buffer('outputs', torch.zeros(num_nodes, num_classes))
         self.register_buffer('train_loss', torch.ones(num_nodes))
         self.register_buffer('val_loss', torch.ones(num_nodes))
-
+        self.num_nodes = num_nodes
+        self.num_classes = num_classes
         self.alpha = 0.75
+
+    def flush(self):
+        self.outputs = torch.zeros(self.num_nodes, self.num_classes)
+        self.train_loss = torch.ones(self.num_nodes)
+        self.val_loss = torch.ones(self.num_nodes)
 
     def update_output(self, n_id, outputs):
         self.outputs[n_id] = outputs
