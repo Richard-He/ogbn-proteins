@@ -8,7 +8,7 @@ from ogb.nodeproppred import PygNodePropPredDataset, Evaluator
 from torch_geometric.nn import GENConv, DeepGCNLayer
 from torch_geometric.data import RandomNodeSampler
 
-dataset = PygNodePropPredDataset('ogbn-proteins', root='./data')
+dataset = PygNodePropPredDataset('ogbn-proteins', root='mnt/data/ogbdata')
 splitted_idx = dataset.get_idx_split()
 data = dataset[0]
 data.node_species = None
@@ -24,9 +24,9 @@ for split in ['train', 'valid', 'test']:
     mask[splitted_idx[split]] = True
     data[f'{split}_mask'] = mask
 
-train_loader = RandomNodeSampler(data, num_parts=7, shuffle=True,
+train_loader = RandomNodeSampler(data, num_parts=40, shuffle=True,
                                  num_workers=5)
-test_loader = RandomNodeSampler(data, num_parts=7, num_workers=5)
+test_loader = RandomNodeSampler(data, num_parts=10, num_workers=5)
 
 
 class DeeperGCN(torch.nn.Module):

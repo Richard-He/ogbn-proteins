@@ -8,7 +8,7 @@ from ogb.nodeproppred import PygNodePropPredDataset, Evaluator
 from gen_conv import GENConv
 from torch_geometric.nn import DeepGCNLayer
 from torch_geometric.data import RandomNodeSampler
-from utils import _filter
+from sampler import GraphSAINTRandomWalkSampler
 from meta_net import Record, MetaNet
 from utils import _filter
 
@@ -47,7 +47,39 @@ class DeeperGCN(torch.nn.Module):
 
         return self.lin(x)
 
+class DeeperGCN2(torch.nn.Module):
+    def __init__(self, hidden_channels, num_layers):
+        super(DeeperGCN2, self).__init__()
 
+        self.node_encoder = Linear(data.x.size(-1), hidden_channels)
+        self.edge_encoder = Linear(data.edge_attr.size(-1), hidden_channels)
+
+        self.layers = torch.nn.ModuleList()
+        for i in range(1, num_layers + 1):
+            conv = GENConv(hidden_channels, hidden_channels, aggr='stat',
+                           t=1.0, learn_t=True, num_layers=2, norm='layer', msg_norm=True)
+            norm = LayerNorm(hidden_channels, elementwise_affine=True)
+            act = ReLU(inplace=True)
+
+            layer = DeepGCNLayer(conv, norm, act, block='res+', dropout=0.1,
+                                 ckpt_grad=i % 3)
+            self.layers.append(layer)
+
+        self.lin = Linear(hidden_channels, data.y.size(-1))
+
+    def forward(self, x, edge_index, edge_attr):
+        x = self.node_encoder(x)
+        edge_attr = self.edge_encoder(edge_attr)
+
+        x = self.layers[0].conv(x, edge_index, edge_attr)
+
+        for layer in self.layers[1:]:
+            x = layer(x, edge_index, edge_attr)
+
+        x = self.layers[0].act(self.layers[0].norm(x))
+        x = F.dropout(x, p=0.1, training=self.training)
+
+        return self.lin(x)
 
 
 
@@ -242,7 +274,7 @@ def test_wprune(model):
     return train_rocauc, valid_rocauc, test_rocauc
 
 
-dataset = PygNodePropPredDataset('ogbn-proteins', root='./data')
+dataset = PygNodePropPredDataset('ogbn-proteins', root='mnt/data/ogbdata')
 splitted_idx = dataset.get_idx_split()
 data = dataset[0]
 data.n_id = torch.arange(data.num_nodes)
@@ -257,18 +289,20 @@ for split in ['train', 'valid', 'test']:
     mask[splitted_idx[split]] = True
     data[f'{split}_mask'] = mask
 
-train_loader = RandomNodeSampler(data, num_parts=7, shuffle=True,
-                                num_workers=5)
-test_loader = RandomNodeSampler(data, num_parts=7, num_workers=5)
+# train_loader = GraphSAINTRandomWalkSampler(data, batch_size=int(data.num_nodes / 400), num_steps=10,
+#                                 walk_length=10)
+train_loader = RandomNodeSampler(data, num_parts=40, num_workers=5, shuffle=True)
+test_loader = RandomNodeSampler(data, num_parts=10, num_workers=5)
 
-p_train_loader = RandomNodeSampler(data, num_parts=4, shuffle=True,
-                                num_workers=5)
-k = int(data.num_nodes / 7)
+# p_train_loader = GraphSAINTRandomWalkSampler(data, batch_size=int(data.num_nodes / 200), num_steps=10,
+#                                 walk_length=10)
+p_train_loader = RandomNodeSampler(data, num_parts=20, num_workers=5, shuffle=True)
+k = int(data.num_nodes / 40)
 
 
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-model1 = DeeperGCN(hidden_channels=64, num_layers=28).to(device)
-model2 = DeeperGCN(hidden_channels=64, num_layers=2).to(device)
+model1 = DeeperGCN2(hidden_channels=64, num_layers=28).to(device)
+model2 = DeeperGCN2(hidden_channels=64, num_layers=2).to(device)
 optimizer1 = torch.optim.Adam(model1.parameters(), lr=0.01)
 optimizer2 = torch.optim.Adam(model2.parameters(), lr=0.01)
 criterion = torch.nn.BCEWithLogitsLoss(reduction='none')
@@ -289,18 +323,19 @@ meta_optimizer = torch.optim.Adam(meta_net.parameters(), lr=0.001)
 #         f'Val: {valid_rocauc:.4f}, Test: {test_rocauc:.4f}')
 # print('best: {}'.format(best))
 
-N1 = 1000
+N1 = 1500
 N2 = 1000
 best_test_1 = 0
 best_test_2 = 0
 for epoch in range(1,N1+1):
-    loss = train(epoch, model2, optimizer2)
-    train_rocauc, valid_rocauc, test_rocauc = test(model2)
+    loss = train(epoch, model1, optimizer1)
+    train_rocauc, valid_rocauc, test_rocauc = test(model1)
     if test_rocauc > best_test_1:
         best_test_1 = test_rocauc
     print(f'Phase 1 Loss: {loss:.4f}, Train: {train_rocauc:.4f}, '
         f'Val: {valid_rocauc:.4f}, Test: {test_rocauc:.4f}')
 for epoch in range(1, N2+1):
+    loss = train_wprune(epoch, k, model1, optimizer1)
     loss = train_wprune(epoch, k, model1, optimizer1)
     train_rocauc, valid_rocauc, test_rocauc = test_wprune(model1)
     if test_rocauc > best_test_2:
