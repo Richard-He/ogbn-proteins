@@ -23,8 +23,8 @@ for split in ['train', 'valid', 'test']:
     mask = torch.zeros(data.num_nodes, dtype=torch.bool)
     mask[splitted_idx[split]] = True
     data[f'{split}_mask'] = mask
-
-train_loader = RandomNodeSampler(data, num_parts=40, shuffle=True,
+num_parts = 20
+train_loader = RandomNodeSampler(data, num_parts=num_parts, shuffle=True,
                                  num_workers=5)
 test_loader = RandomNodeSampler(data, num_parts=10, num_workers=5)
 
@@ -136,9 +136,13 @@ def test():
 
     return train_rocauc, valid_rocauc, test_rocauc
 
-
+best = 0
 for epoch in range(1, 1001):
     loss = train(epoch)
     train_rocauc, valid_rocauc, test_rocauc = test()
     print(f'Loss: {loss:.4f}, Train: {train_rocauc:.4f}, '
           f'Val: {valid_rocauc:.4f}, Test: {test_rocauc:.4f}')
+    if best < test_rocauc:
+        best = test_rocauc
+print('NAIVE numpart={}'.format(num_parts))
+print('best{}'.format(best))

@@ -11,6 +11,9 @@ from torch_geometric.data import RandomNodeSampler
 from sampler import GraphSAINTRandomWalkSampler
 from meta_net import Record, MetaNet
 from utils import _filter
+import logging
+
+
 
 
 class DeeperGCN(torch.nn.Module):
@@ -273,7 +276,8 @@ def test_wprune(model):
 
     return train_rocauc, valid_rocauc, test_rocauc
 
-
+num_parts=40
+prune_ratio=0.
 dataset = PygNodePropPredDataset('ogbn-proteins', root='mnt/data/ogbdata')
 splitted_idx = dataset.get_idx_split()
 data = dataset[0]
@@ -291,27 +295,27 @@ for split in ['train', 'valid', 'test']:
 
 # train_loader = GraphSAINTRandomWalkSampler(data, batch_size=int(data.num_nodes / 400), num_steps=10,
 #                                 walk_length=10)
-train_loader = RandomNodeSampler(data, num_parts=40, num_workers=5, shuffle=True)
+train_loader = RandomNodeSampler(data, num_parts=num_parts, num_workers=5, shuffle=True)
 test_loader = RandomNodeSampler(data, num_parts=10, num_workers=5)
 
 # p_train_loader = GraphSAINTRandomWalkSampler(data, batch_size=int(data.num_nodes / 200), num_steps=10,
 #                                 walk_length=10)
-p_train_loader = RandomNodeSampler(data, num_parts=20, num_workers=5, shuffle=True)
-k = int(data.num_nodes / 40)
+p_train_loader = RandomNodeSampler(data, num_parts=int(num_parts/2), num_workers=5, shuffle=True)
+k = int(data.num_nodes / num_parts *2*prune_ratio)
 
 
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 model1 = DeeperGCN2(hidden_channels=64, num_layers=28).to(device)
 model2 = DeeperGCN2(hidden_channels=64, num_layers=2).to(device)
-optimizer1 = torch.optim.Adam(model1.parameters(), lr=0.01)
-optimizer2 = torch.optim.Adam(model2.parameters(), lr=0.01)
+optimizer1 = torch.optim.Adam(model1.parameters(), lr=1e-3)
+optimizer2 = torch.optim.Adam(model2.parameters(), lr=1e-3)
 criterion = torch.nn.BCEWithLogitsLoss(reduction='none')
 evaluator = Evaluator('ogbn-proteins')
 
 recorder = Record(num_nodes=data.num_nodes, num_classes=data.y.size(-1))
 
 meta_net = MetaNet(input_dim=data.y.size(-1) + 2, hidden_dim=32).to(device)
-meta_optimizer = torch.optim.Adam(meta_net.parameters(), lr=0.001)
+meta_optimizer = torch.optim.Adam(meta_net.parameters(), lr=1e-4)
 
 # best = 0
 # for epoch in range(1, 1001):
@@ -323,8 +327,8 @@ meta_optimizer = torch.optim.Adam(meta_net.parameters(), lr=0.001)
 #         f'Val: {valid_rocauc:.4f}, Test: {test_rocauc:.4f}')
 # print('best: {}'.format(best))
 
-N1 = 1500
-N2 = 1000
+N1 = 600
+N2 = 700
 best_test_1 = 0
 best_test_2 = 0
 for epoch in range(1,N1+1):
@@ -334,6 +338,7 @@ for epoch in range(1,N1+1):
         best_test_1 = test_rocauc
     print(f'Phase 1 Loss: {loss:.4f}, Train: {train_rocauc:.4f}, '
         f'Val: {valid_rocauc:.4f}, Test: {test_rocauc:.4f}')
+print('best_test_1: {}'.format(best_test_1))
 for epoch in range(1, N2+1):
     loss = train_wprune(epoch, k, model1, optimizer1)
     loss = train_wprune(epoch, k, model1, optimizer1)
@@ -343,8 +348,8 @@ for epoch in range(1, N2+1):
     print(f'Phase 2 Loss: {loss:.4f}, Train: {train_rocauc:.4f}, '
         f'Val: {valid_rocauc:.4f}, Test: {test_rocauc:.4f}')
 print('best_test_1 : {} , best _test_2 : {}'.format(best_test_1, best_test_2))
-
-
+print('num parts {}'.format(num_parts))
+print('prune ratio {}'.format(prune_ratio))
 # N=[300]*10
 # for i in range(len(N)):
 #     if i%2 ==0:
