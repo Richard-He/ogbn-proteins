@@ -385,10 +385,12 @@ class RandomNodeSampler(torch.utils.data.DataLoader):
         if prune == True:
             self.edge_index = data.edge_index
             self.train_idx = self.split_idx['train']
-            self.train_e_idx = self.adj.to_dense()[self.train_idx][:,self.train_idx].view(-1)
+            subadj = self.adj.to_dense()[self.train_idx][:,self.train_idx].view(-1)
+            self.train_e_idx = subadj[subadj.nonzero()].squeeze()
             self.train_edge_index = self.data.edge_index[:, self.train_e_idx]
-            
             self.rest_e_idx = torch.LongTensor(list(set(range(self.E)) - set(self.train_idx.tolist())))
+            print(f'train_e_idx size :{self.train_edge_index.size(1)}, rest_eid_size {self.rest_e_idx.size(0)}')
+
             #self.rest_edge_index = self.data.edge_index[:, self.rest_e_idx]
 
     def __getitem__(self, idx):
@@ -396,13 +398,11 @@ class RandomNodeSampler(torch.utils.data.DataLoader):
 
     def prune(self, loss, threshold=0, ratio=0):
         p_loss = loss[self.split_idx['train']]
-        #print(loss.size())
         diff_loss = torch.abs(loss[self.train_edge_index[0]] - loss[self.train_edge_index[1]])
-        print(diff_loss.size())
         if threshold == 0:
             threshold, _ = torch.kthvalue(diff_loss, int(len(diff_loss)*ratio))
+        print('len diff_loss', len(diff_loss))
         mask = (diff_loss < threshold)
-        print(threshold)
         # self.train_edge_index = self.train_edge_index[:,mask]
         # edge_index = torch.cat([self.train_edge_index,self.rest_edge_index], dim=1)
         # self.data.edge_index = edge_index

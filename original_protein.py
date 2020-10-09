@@ -14,8 +14,8 @@ times = 10
 threshold = 0
 num_parts = 20
 best = 0
-start_epochs = 6
-prune_epochs = 3
+start_epochs = 100
+prune_epochs = 100
 #logging.basicConfig(filename= f'./log/test_{ratio}_{times}_{num_parts}.log', encoding = 'utf-8',
 #                    level=logging.DEBUG)
 
@@ -163,9 +163,10 @@ for epoch in range(start_epochs):
         print(f'********************best roc_auc: {best:.4f}***********')
         #logging.info(f'best roc_auc: {best}')
 ttepochs=0
+ratio = o_ratio
+best_times =0
 for i in range(times):
     recloss = test(prune=True, epoch=0)
-    ratio = o_ratio
     print(f'ratio: {ratio}')
     #logging.info(f'ratio: {ratio}')
     del(test_loader)
@@ -182,6 +183,7 @@ for i in range(times):
         #    f'Val: {valid_rocauc:.4f}, Test: {test_rocauc:.4f}')
         if best < test_rocauc:
             best = test_rocauc
+            best_times = times
             print(f'********************best roc_auc: {best:.4f}***********')
             #logging.info(f'best roc_auc: {best:.4f}')
-    ratio *= o_ratio
+print(f'best times :{best_times}')
