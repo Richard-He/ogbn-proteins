@@ -67,7 +67,4 @@ class Record(nn.Module):
 
         record = torch.cat([train_loss, val_loss, outputs], dim=-1)
 
-        return record
-        
-
-        
+        return record        
