@@ -4,22 +4,32 @@ import torch.nn.functional as F
 from torch.nn import Linear, LayerNorm, ReLU
 from torch_scatter import scatter
 from ogb.nodeproppred import PygNodePropPredDataset, Evaluator
-
+import numpy as np
 from torch_geometric.nn import GENConv, DeepGCNLayer
 from sampler import RandomNodeSampler
-import logging
+from loguru import logger
+from utils import StyleAdapter
 
-o_ratio = 0.9
-times = 10
+ratio = 0.9
+times = 20
 threshold = 0
-num_parts = 20
+num_parts = 15
 best = 0
-start_epochs = 100
+start_epochs = 500
 prune_epochs = 100
+prune_set = 'train'
 #logging.basicConfig(filename= f'./log/test_{ratio}_{times}_{num_parts}.log', encoding = 'utf-8',
 #                    level=logging.DEBUG)
-
-dataset = PygNodePropPredDataset('ogbn-proteins', root='mnt/data/ogbdata')
+logger.add('log/test_{}_{}_{}_{}.log'.format(num_parts,ratio,start_epochs,prune_epochs))
+log_name = 'log/test_{}_{}_{}_{}.log'.format(num_parts,ratio,start_epochs,prune_epochs)
+logger.info('logname: {}'.format(log_name))
+logger.info('params: ratio {ratio}, times {times}, numparts {num_parts}, start epochs {start_epochs}, prune epochs {prune_epochs} ',
+                                                                        ratio = ratio,
+                                                                        times = times,
+                                                                        num_parts = num_parts,
+                                                                        start_epochs = start_epochs,
+                                                                        prune_epochs = prune_epochs)
+dataset = PygNodePropPredDataset('ogbn-proteins', root='/mnt/data/ogbdata')
 splitted_idx = dataset.get_idx_split()
 data = dataset[0]
 data.node_species = None
@@ -35,7 +45,7 @@ for split in ['train', 'valid', 'test']:
     mask[splitted_idx[split]] = True
     data[f'{split}_mask'] = mask
 train_loader = RandomNodeSampler(data, num_parts=num_parts, shuffle=True,
-                                  split_idx=splitted_idx, prune=True, num_workers=5)
+                                  split_idx=splitted_idx, prune=True,prune_set=prune_set, num_workers=5)
 test_loader = RandomNodeSampler(data, num_parts=num_parts, num_workers=5)
 
 recordloss = torch.zeros(data.num_nodes)
@@ -154,36 +164,41 @@ def test(epoch, prune=False):
 for epoch in range(start_epochs):
     loss = train(epoch)
     train_rocauc, valid_rocauc, test_rocauc = test(epoch=epoch)
-    print(f'Loss: {loss:.4f}, Train: {train_rocauc:.4f}, '
-          f'Val: {valid_rocauc:.4f}, Test: {test_rocauc:.4f}')
-    #logging.info(f'Loss: {loss:.4f}, Train: {train_rocauc:.4f}, '
-    #      f'Val: {valid_rocauc:.4f}, Test: {test_rocauc:.4f}')
+    # print(f'Loss: {loss:.4f}, Train: {train_rocauc:.4f}, '
+    #       f'Val: {valid_rocauc:.4f}, Test: {test_rocauc:.4f}')
+    logger.info('Loss: {:.4f}, Train: {:.4f}, Val: {:.4f}, Test: {:.4f}'.format(loss, train_rocauc,valid_rocauc, test_rocauc))
+
     if best < test_rocauc:
         best = test_rocauc
-        print(f'********************best roc_auc: {best:.4f}***********')
-        #logging.info(f'best roc_auc: {best}')
+        # print(f'********************best roc_auc: {best:.4f}***********')
+        logger.info('********************best roc_auc: {:.4f}'.format(best))
 ttepochs=0
-ratio = o_ratio
 best_times =0
+best_auc_roc = []
 for i in range(times):
+    time_best = 0
+    # print(f'ratio is {o_ratio ** (i+1)}')
+    logger.info(f'--------ratio is {ratio ** (i+1)}')
     recloss = test(prune=True, epoch=0)
-    print(f'ratio: {ratio}')
-    #logging.info(f'ratio: {ratio}')
+    #logger.info(f'ratio: {ratio}')
     del(test_loader)
     train_loader.prune(recloss, ratio)
     test_loader = RandomNodeSampler(train_loader.data, num_edges=train_loader.data.edge_index.size(1), num_parts=num_parts, num_workers=5)
     for epoch in range(prune_epochs):
-        print(f'*******************epochs : {ttepochs}*******************')
+        # print(f'*******************epochs : {ttepochs}*******************')
+        logger.info('*******************epochs : {}*******************'.format(ttepochs))
         ttepochs += 1
         loss = train(epoch)
         train_rocauc, valid_rocauc, test_rocauc = test(epoch=epoch)
-        print(f'ratio:{ratio:.4f} Loss: {loss:.4f}, Train: {train_rocauc:.4f}, '
-            f'Val: {valid_rocauc:.4f}, Test: {test_rocauc:.4f}')
-        #logging.info(f'ratio:{ratio:.4f}, Loss: {loss:.4f}, Train: {train_rocauc:.4f}, '
-        #    f'Val: {valid_rocauc:.4f}, Test: {test_rocauc:.4f}')
-        if best < test_rocauc:
-            best = test_rocauc
+        # print(f'ratio:{ratio:.4f} Loss: {loss:.4f}, Train: {train_rocauc:.4f}, '
+        #     f'Val: {valid_rocauc:.4f}, Test: {test_rocauc:.4f}')
+        logger.info('Loss: {:.4f}, Train: {:.4f}, Val: {:.4f}, Test: {:.4f}'.format(loss, train_rocauc,valid_rocauc, test_rocauc))
+        if time_best < test_rocauc:
+            time_best = test_rocauc
             best_times = times
-            print(f'********************best roc_auc: {best:.4f}***********')
-            #logging.info(f'best roc_auc: {best:.4f}')
-print(f'best times :{best_times}')
+            # print('+++++++++++++++best roc_auc: {:.4f} at time {}'.format(time_best,i))
+            logger.info('+++++++++++++++best roc_auc: {:.4f} at time {}'.format(time_best,i))
+    best_auc_roc.append(time_best)
+global_best_id = np.argmax(best_auc_roc)
+# print(f'best auc_roc:{best_auc_roc[global_best_id]} at {global_best_id} time')
+logger.info('best auc_roc:{} at {} time'.format(best_auc_roc[global_best_id],global_best_id))

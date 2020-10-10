@@ -7,6 +7,7 @@ from torch_sparse import SparseTensor
 import logging
 from typing import List, Optional, Tuple, NamedTuple
 
+
 class GraphSAINTSampler(torch.utils.data.DataLoader):
     r"""The GraphSAINT sampler base class from the `"GraphSAINT: Graph
     Sampling Based Inductive Learning Method"
@@ -363,7 +364,7 @@ class RandomNodeSampler(torch.utils.data.DataLoader):
         **kwargs (optional): Additional arguments of
             :class:`torch.utils.data.DataLoader`, such as :obj:`num_workers`.
     """
-    def __init__(self, data, num_parts: int, shuffle: bool = False, split_idx=None, num_edges=None, prune=False, **kwargs):
+    def __init__(self, data, num_parts: int, shuffle: bool = False, split_idx=None, num_edges=None, prune=False, prune_set='train', **kwargs):
         assert data.edge_index is not None
 
         self.N = N = data.num_nodes
@@ -384,25 +385,29 @@ class RandomNodeSampler(torch.utils.data.DataLoader):
             collate_fn=self.__collate__, **kwargs)
         if prune == True:
             self.edge_index = data.edge_index
-            self.train_idx = self.split_idx['train']
+            if prune_set == 'train':
+                self.train_idx = self.split_idx['train']
+            else:
+                self.train_idx = torch.cat([self.split_idx['train'], self.split_idx['valid']])
             subadj = self.adj.to_dense()[self.train_idx][:,self.train_idx].view(-1)
             self.train_e_idx = subadj[subadj.nonzero()].squeeze()
             self.train_edge_index = self.data.edge_index[:, self.train_e_idx]
-            self.rest_e_idx = torch.LongTensor(list(set(range(self.E)) - set(self.train_idx.tolist())))
-            print(f'train_e_idx size :{self.train_edge_index.size(1)}, rest_eid_size {self.rest_e_idx.size(0)}')
-
+            E_set = set(range(self.E)) 
+            T_set = set(self.train_e_idx.tolist())
+            self.rest_e_idx = torch.LongTensor(list(E_set - T_set))
+            # print(f'train_e_idx size :{self.train_edge_index.size(1)}, rest_eid_size {self.rest_e_idx.size(0)}')
+            # logging.info('train_e_idx size :{}, rest_eid_size {}'.format(self.train_edge_index.size(1), self.rest_e_idx.size(0)))
             #self.rest_edge_index = self.data.edge_index[:, self.rest_e_idx]
 
     def __getitem__(self, idx):
         return idx
 
-    def prune(self, loss, threshold=0, ratio=0):
-        p_loss = loss[self.split_idx['train']]
+    def prune(self, loss, ratio=0):
+        p_loss = loss[self.train_idx]
         diff_loss = torch.abs(loss[self.train_edge_index[0]] - loss[self.train_edge_index[1]])
-        if threshold == 0:
-            threshold, _ = torch.kthvalue(diff_loss, int(len(diff_loss)*ratio))
-        print('len diff_loss', len(diff_loss))
-        mask = (diff_loss < threshold)
+        # print(diff_loss.nonzero().size())
+        # print(int(len(diff_loss)*ratio))
+        __ , mask = torch.topk(diff_loss, int(len(diff_loss)*ratio) ,largest=False)
         # self.train_edge_index = self.train_edge_index[:,mask]
         # edge_index = torch.cat([self.train_edge_index,self.rest_edge_index], dim=1)
         # self.data.edge_index = edge_index
@@ -411,11 +416,11 @@ class RandomNodeSampler(torch.utils.data.DataLoader):
         self.data.edge_attr = self.data.edge_attr[torch.cat([self.train_e_idx, self.rest_e_idx])]
         self.data.edge_index = self.data.edge_index[:,torch.cat([self.train_e_idx, self.rest_e_idx])]
 
-        print(self.data.edge_attr.size(), self.data.edge_index.size())
+        # print(self.data.edge_attr.size(), self.data.edge_index.size())
         self.train_e_idx = torch.arange(self.train_e_idx.size(0))
         self.rest_e_idx = torch.arange(self.train_e_idx.size(0),self.train_e_idx.size(0) + self.rest_e_idx.size(0))
-
-        self.E = self.data.num_edges
+        # print(len(self.train_e_idx),len(self.rest_e_idx), self.train_edge_index.size(),self.data.edge_index.size())
+        self.E = self.data.edge_index.size(1)
         self.adj = SparseTensor(
             row=self.data.edge_index[0], col=self.data.edge_index[1],
             value=torch.arange(self.E, device=self.data.edge_index.device),

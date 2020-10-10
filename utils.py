@@ -1,7 +1,8 @@
 import torch
 from torch_sparse import SparseTensor
 from torch_geometric.data import Data
-
+from inspect import getargspec
+import logging
 
 def _filter(data, node_idx):
     """
@@ -28,3 +29,27 @@ def _filter(data, node_idx):
     new_data.num_nodes = len(node_idx)
     new_data.edge_attr = value
     return new_data
+
+
+class BraceMessage(object):
+    def __init__(self, fmt, args, kwargs):
+        self.fmt = fmt
+        self.args = args
+        self.kwargs = kwargs
+
+    def __str__(self):
+        return str(self.fmt).format(*self.args, **self.kwargs)
+
+class StyleAdapter(logging.LoggerAdapter):
+    def __init__(self, logger):
+        self.logger = logger
+
+    def log(self, level, msg, *args, **kwargs):
+        if self.isEnabledFor(level):
+            msg, log_kwargs = self.process(msg, kwargs)
+            self.logger._log(level, BraceMessage(msg, args, kwargs), (), 
+                    **log_kwargs)
+
+    def process(self, msg, kwargs):
+        return msg, {key: kwargs[key] 
+                for key in getargspec(self.logger._log).args[1:] if key in kwargs}
