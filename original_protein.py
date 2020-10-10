@@ -10,13 +10,13 @@ from sampler import RandomNodeSampler
 from loguru import logger
 from utils import StyleAdapter
 
-ratio = 0.9
-times = 20
+ratio = 0.90
+times = 15
 threshold = 0
 num_parts = 15
 best = 0
 start_epochs = 500
-prune_epochs = 100
+prune_epochs = 300
 prune_set = 'train'
 #logging.basicConfig(filename= f'./log/test_{ratio}_{times}_{num_parts}.log', encoding = 'utf-8',
 #                    level=logging.DEBUG)
@@ -96,8 +96,8 @@ evaluator = Evaluator('ogbn-proteins')
 def train(epoch):
     model.train()
 
-    pbar = tqdm(total=len(train_loader))
-    pbar.set_description(f'Training epoch: {epoch:04d}')
+    # pbar = tqdm(total=len(train_loader))
+    # pbar.set_description(f'Training epoch: {epoch:04d}')
 
     total_loss = total_examples = 0
     for data in train_loader:
@@ -111,9 +111,9 @@ def train(epoch):
         total_loss += float(loss) * int(data.train_mask.sum())
         total_examples += int(data.train_mask.sum())
 
-        pbar.update(1)
+        # pbar.update(1)
 
-    pbar.close()
+    # pbar.close()
 
     return total_loss / total_examples
 
@@ -125,8 +125,8 @@ def test(epoch, prune=False):
     y_true = {'train': [], 'valid': [], 'test': []}
     y_pred = {'train': [], 'valid': [], 'test': []}
 
-    pbar = tqdm(total=len(test_loader))
-    pbar.set_description(f'Evaluating epoch: {epoch:04d}')
+    # pbar = tqdm(total=len(test_loader))
+    # pbar.set_description(f'Evaluating epoch: {epoch:04d}')
 
     for data in test_loader:
         data = data.to(device)
@@ -138,9 +138,9 @@ def test(epoch, prune=False):
             y_true[split].append(data.y[mask].cpu())
             y_pred[split].append(out[mask].cpu())
 
-        pbar.update(1)
+        # pbar.update(1)
 
-    pbar.close()
+    # pbar.close()
     if prune == False:
         train_rocauc = evaluator.eval({
             'y_true': torch.cat(y_true['train'], dim=0),
