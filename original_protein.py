@@ -16,12 +16,12 @@ threshold = 0
 num_parts = 15
 best = 0
 start_epochs = 500
-prune_epochs = 300
+prune_epochs = 400
 prune_set = 'train'
 #logging.basicConfig(filename= f'./log/test_{ratio}_{times}_{num_parts}.log', encoding = 'utf-8',
 #                    level=logging.DEBUG)
-logger.add('log/test_{}_{}_{}_{}.log'.format(num_parts,ratio,start_epochs,prune_epochs))
-log_name = 'log/test_{}_{}_{}_{}.log'.format(num_parts,ratio,start_epochs,prune_epochs)
+logger.add('log/test_{}_{}_{}_{}_{}.log'.format(num_parts,ratio,start_epochs,prune_epochs, prune_set))
+log_name = 'log/test_{}_{}_{}_{}_{}.log'.format(num_parts,ratio,start_epochs,prune_epochs,prune_set)
 logger.info('logname: {}'.format(log_name))
 logger.info('params: ratio {ratio}, times {times}, numparts {num_parts}, start epochs {start_epochs}, prune epochs {prune_epochs} ',
                                                                         ratio = ratio,
