@@ -10,18 +10,19 @@ from sampler import RandomNodeSampler
 from loguru import logger
 from utils import StyleAdapter
 
-ratio = 0.90
-times = 15
+ratio = 0.98
+times = 10
 threshold = 0
-num_parts = 15
+num_parts = 14
 best = 0
 start_epochs = 500
-prune_epochs = 300
+prune_epochs = 400
 prune_set = 'train'
 #logging.basicConfig(filename= f'./log/test_{ratio}_{times}_{num_parts}.log', encoding = 'utf-8',
 #                    level=logging.DEBUG)
-logger.add('log/test_{}_{}_{}_{}.log'.format(num_parts,ratio,start_epochs,prune_epochs))
-log_name = 'log/test_{}_{}_{}_{}.log'.format(num_parts,ratio,start_epochs,prune_epochs)
+
+log_name = 'log/test_{}_{}_{}_{}_{}.log'.format(num_parts,ratio,start_epochs,prune_epochs,prune_set)
+logger.add(log_name)
 logger.info('logname: {}'.format(log_name))
 logger.info('params: ratio {ratio}, times {times}, numparts {num_parts}, start epochs {start_epochs}, prune epochs {prune_epochs} ',
                                                                         ratio = ratio,
@@ -111,7 +112,7 @@ def train(epoch):
         total_loss += float(loss) * int(data.train_mask.sum())
         total_examples += int(data.train_mask.sum())
 
-        # pbar.update(1)
+        #pbar.update(1)
 
     # pbar.close()
 
@@ -138,7 +139,7 @@ def test(epoch, prune=False):
             y_true[split].append(data.y[mask].cpu())
             y_pred[split].append(out[mask].cpu())
 
-        # pbar.update(1)
+    #     pbar.update(1)
 
     # pbar.close()
     if prune == False:
@@ -166,7 +167,7 @@ for epoch in range(start_epochs):
     train_rocauc, valid_rocauc, test_rocauc = test(epoch=epoch)
     # print(f'Loss: {loss:.4f}, Train: {train_rocauc:.4f}, '
     #       f'Val: {valid_rocauc:.4f}, Test: {test_rocauc:.4f}')
-    logger.info('Loss: {:.4f}, Train: {:.4f}, Val: {:.4f}, Test: {:.4f}'.format(loss, train_rocauc,valid_rocauc, test_rocauc))
+    logger.info('Epochs: {}, Loss: {:.4f}, Train: {:.4f}, Val: {:.4f}, Test: {:.4f}'.format(epoch+1, loss, train_rocauc,valid_rocauc, test_rocauc))
 
     if best < test_rocauc:
         best = test_rocauc
@@ -175,6 +176,10 @@ for epoch in range(start_epochs):
 ttepochs=0
 best_times =0
 best_auc_roc = []
+best_train_auc = []
+best_val_auc = []
+tr_best = 0
+val_best = 0
 for i in range(times):
     time_best = 0
     # print(f'ratio is {o_ratio ** (i+1)}')
@@ -186,19 +191,36 @@ for i in range(times):
     test_loader = RandomNodeSampler(train_loader.data, num_edges=train_loader.data.edge_index.size(1), num_parts=num_parts, num_workers=5)
     for epoch in range(prune_epochs):
         # print(f'*******************epochs : {ttepochs}*******************')
-        logger.info('*******************epochs : {}*******************'.format(ttepochs))
-        ttepochs += 1
+        # logger.info('*******************epochs : {}*******************'.format(ttepochs))
         loss = train(epoch)
         train_rocauc, valid_rocauc, test_rocauc = test(epoch=epoch)
         # print(f'ratio:{ratio:.4f} Loss: {loss:.4f}, Train: {train_rocauc:.4f}, '
         #     f'Val: {valid_rocauc:.4f}, Test: {test_rocauc:.4f}')
-        logger.info('Loss: {:.4f}, Train: {:.4f}, Val: {:.4f}, Test: {:.4f}'.format(loss, train_rocauc,valid_rocauc, test_rocauc))
+        logger.info('epochs : {}, Loss: {:.4f}, Train: {:.4f}, Val: {:.4f}, Test: {:.4f}'.format(ttepochs,loss, train_rocauc,valid_rocauc, test_rocauc))
+        ttepochs += 1
+
         if time_best < test_rocauc:
             time_best = test_rocauc
             best_times = times
             # print('+++++++++++++++best roc_auc: {:.4f} at time {}'.format(time_best,i))
-            logger.info('+++++++++++++++best roc_auc: {:.4f} at time {}'.format(time_best,i))
+            logger.info('+++++++++++++++best test roc_auc: {:.4f} at time {}'.format(time_best,i))
+        if tr_best < train_rocauc:
+            tr_best = train_rocauc
+            best_times = times
+            # print('+++++++++++++++best roc_auc: {:.4f} at time {}'.format(time_best,i))
+            #logger.info('+++++++++++++++best train roc_auc: {:.4f} at time {}'.format(tr_best,i))
+        if val_best < valid_rocauc:
+            val_best = valid_rocauc
+            best_times = times
+            # print('+++++++++++++++best roc_auc: {:.4f} at time {}'.format(time_best,i))
+            logger.info('+++++++++++++++best valid roc_auc: {:.4f} at time {}'.format(val_best,i))
     best_auc_roc.append(time_best)
+    best_train_auc.append(tr_best)
+    best_val_auc.append(val_best)
 global_best_id = np.argmax(best_auc_roc)
+global_best_id_tr = np.argmax(best_train_auc)
+global_best_id_val = np.argmax(best_val_auc)
 # print(f'best auc_roc:{best_auc_roc[global_best_id]} at {global_best_id} time')
+logger.info('best train auc_roc:{} at {} time'.format(best_train_auc[global_best_id_tr],global_best_id_tr))
+logger.info('best valid auc_roc:{} at {} time'.format(best_val_auc[global_best_id_val],global_best_id_val))
 logger.info('best auc_roc:{} at {} time'.format(best_auc_roc[global_best_id],global_best_id))
