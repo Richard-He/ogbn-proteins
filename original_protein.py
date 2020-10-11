@@ -10,18 +10,18 @@ from sampler import RandomNodeSampler
 from loguru import logger
 from utils import StyleAdapter
 
-ratio = 0.98
+ratio = 0.90
 times = 10
-threshold = 0
-num_parts = 14
+num_parts = 15
+num_test_parts=15
 best = 0
 start_epochs = 500
-prune_epochs = 400
-prune_set = 'train'
+prune_epochs = 200
+prune_set = 'valid'
 #logging.basicConfig(filename= f'./log/test_{ratio}_{times}_{num_parts}.log', encoding = 'utf-8',
 #                    level=logging.DEBUG)
 
-log_name = 'log/test_{}_{}_{}_{}_{}.log'.format(num_parts,ratio,start_epochs,prune_epochs,prune_set)
+log_name = 'log/test_{}_{}_{}_{}_{}_{}.log'.format(num_parts,num_test_parts,ratio,start_epochs,prune_epochs,prune_set)
 logger.add(log_name)
 logger.info('logname: {}'.format(log_name))
 logger.info('params: ratio {ratio}, times {times}, numparts {num_parts}, start epochs {start_epochs}, prune epochs {prune_epochs} ',
@@ -47,7 +47,7 @@ for split in ['train', 'valid', 'test']:
     data[f'{split}_mask'] = mask
 train_loader = RandomNodeSampler(data, num_parts=num_parts, shuffle=True,
                                   split_idx=splitted_idx, prune=True,prune_set=prune_set, num_workers=5)
-test_loader = RandomNodeSampler(data, num_parts=num_parts, num_workers=5)
+test_loader = RandomNodeSampler(data, num_parts=5, num_workers=5)
 
 recordloss = torch.zeros(data.num_nodes)
 

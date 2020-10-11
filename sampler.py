@@ -275,11 +275,14 @@ class NeighborSampler(torch.utils.data.DataLoader):
             :obj:`shuffle`, :obj:`drop_last` or :obj:`num_workers`.
     """
     def __init__(self, edge_index: torch.Tensor, sizes: List[int],
+                 split_idx,
                  node_idx: Optional[torch.Tensor] = None,
                  num_nodes: Optional[int] = None,
-                 flow: str = "source_to_target", **kwargs):
+                 flow: str = "source_to_target", 
+                 prune=False, prune_set='train',
+                 **kwargs):
 
-        N = int(edge_index.max() + 1) if num_nodes is None else num_nodes
+        self.N = N = int(edge_index.max() + 1) if num_nodes is None else num_nodes
         edge_attr = torch.arange(edge_index.size(1))
         adj = SparseTensor(row=edge_index[0], col=edge_index[1],
                            value=edge_attr, sparse_sizes=(N, N),
@@ -298,7 +301,47 @@ class NeighborSampler(torch.utils.data.DataLoader):
 
         super(NeighborSampler, self).__init__(node_idx.tolist(),
                                               collate_fn=self.sample, **kwargs)
+        
+        if prune == True:
+            self.split_idx = split_idx
+            self.E = edge_index.size(1)
+            self.edge_index = edge_index
+            if prune_set == 'train':
+                self.train_idx = self.split_idx['train']
+            else:
+                self.train_idx = torch.cat([self.split_idx['train'], self.split_idx['valid']])
+            subadj = self.adj.to_dense()[self.train_idx][:,self.train_idx].view(-1)
+            self.train_e_idx = subadj[subadj.nonzero()].squeeze()
+            self.train_edge_index = self.edge_index[:, self.train_e_idx] 
+            self.rest_e_idx = torch.LongTensor(list(set(range(self.E))  - set(self.train_e_idx.tolist())))
 
+    def prune(self, loss, ratio=0):
+        p_loss = loss[self.train_idx]
+        diff_loss = torch.abs(loss[self.train_edge_index[0]] - loss[self.train_edge_index[1]])
+        # print(diff_loss.nonzero().size())
+        # print(int(len(diff_loss)*ratio))
+        
+        threshold, _ = torch.kthvalue(diff_loss, int(len(diff_loss)*ratio))
+        print('len diff_loss', len(diff_loss))
+        mask = (diff_loss < threshold)
+        # self.train_edge_index = self.train_edge_index[:,mask]
+        # edge_index = torch.cat([self.train_edge_index,self.rest_edge_index], dim=1)
+        # self.data.edge_index = edge_index
+        self.train_e_idx = self.train_e_idx[mask]
+        self.train_edge_index = self.train_edge_index[:, mask]
+        # self.edge_attr = self.data.edge_attr[torch.cat([self.train_e_idx, self.rest_e_idx])]
+        self.edge_index = self.edge_index[:,torch.cat([self.train_e_idx, self.rest_e_idx])]
+
+        # print(self.data.edge_attr.size(), self.data.edge_index.size())
+        self.train_e_idx = torch.arange(self.train_e_idx.size(0))
+        self.rest_e_idx = torch.arange(self.train_e_idx.size(0),self.train_e_idx.size(0) + self.rest_e_idx.size(0))
+        # print(len(self.train_e_idx),len(self.rest_e_idx), self.train_edge_index.size(),self.data.edge_index.size())
+        self.E = self.data.num_edges
+        self.adj = SparseTensor(
+            row=self.edge_index[0], col=self.edge_index[1],
+            value=torch.arange(self.E, device=self.edge_index.device),
+            sparse_sizes=(self.N, self.N)) 
+    
     def sample(self, batch):
         if not isinstance(batch, torch.Tensor):
             batch = torch.tensor(batch)
@@ -392,7 +435,7 @@ class RandomNodeSampler(torch.utils.data.DataLoader):
             subadj = self.adj.to_dense()[self.train_idx][:,self.train_idx].view(-1)
             self.train_e_idx = subadj[subadj.nonzero()].squeeze()
             self.train_edge_index = self.data.edge_index[:, self.train_e_idx] 
-            self.rest_e_idx = torch.LongTensor(list(set(range(self.E))  - set(self.train_e_idx.tolist())))
+            self.rest_e_idx = torch.LongTensor(list(set(range(self.E))  - set(self.train_idx.tolist())))
             # print(f'train_e_idx size :{self.train_edge_index.size(1)}, rest_eid_size {self.rest_e_idx.size(0)}')
             # logging.info('train_e_idx size :{}, rest_eid_size {}'.format(self.train_edge_index.size(1), self.rest_e_idx.size(0)))
             #self.rest_edge_index = self.data.edge_index[:, self.rest_e_idx]

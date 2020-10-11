@@ -5,9 +5,19 @@ import torch.nn.functional as F
 from torch.nn import Linear as Lin
 from tqdm import tqdm
 from ogb.nodeproppred import PygNodePropPredDataset, Evaluator
-from torch_geometric.data import NeighborSampler
+from sampler import NeighborSampler
 from torch_geometric.nn import GATConv
 
+sizes=[10]*3
+batch_size = 512
+test_size = 1024
+ratio = 0.90
+times = 10
+best = 0
+start_epochs = 500
+prune_epochs = 200
+
+prune_set = 'train'
 dataset = PygNodePropPredDataset('ogbn-products', root='/mnt/data/ogbdata')
 split_idx = dataset.get_idx_split()
 evaluator = Evaluator(name='ogbn-products')
@@ -15,11 +25,13 @@ data = dataset[0]
 
 train_idx = split_idx['train']
 train_loader = NeighborSampler(data.edge_index, node_idx=train_idx,
-                               sizes=[10, 10, 10], batch_size=512,
-                               shuffle=True, num_workers=12)
+                                split_idx=split_idx,
+                               sizes=sizes, batch_size=batch_size,
+                               shuffle=True, prune=True, prune_set=prune_set num_workers=12)
 subgraph_loader = NeighborSampler(data.edge_index, node_idx=None, sizes=[-1],
                                   batch_size=1024, shuffle=False,
                                   num_workers=12)
+recordloss = torch.zeros(data.num_nodes)
 
 
 class GAT(torch.nn.Module):
@@ -69,8 +81,8 @@ class GAT(torch.nn.Module):
         return x.log_softmax(dim=-1)
 
     def inference(self, x_all):
-        pbar = tqdm(total=x_all.size(0) * self.num_layers)
-        pbar.set_description('Evaluating')
+        #pbar = tqdm(total=x_all.size(0) * self.num_layers)
+        #pbar.set_description('Evaluating')
 
         # Compute representations of nodes layer by layer, using *all*
         # available edges. This leads to faster computation in contrast to
@@ -90,11 +102,11 @@ class GAT(torch.nn.Module):
                     x = F.elu(x)
                 xs.append(x.cpu())
 
-                pbar.update(batch_size)
+                #pbar.update(batch_size)
 
             x_all = torch.cat(xs, dim=0)
 
-        pbar.close()
+        #pbar.close()
 
         return x_all
 
@@ -111,8 +123,8 @@ y = data.y.squeeze().to(device)
 def train(epoch):
     model.train()
     meta_net.eval()
-    pbar = tqdm(total=train_idx.size(0))
-    pbar.set_description(f'Training Epoch {epoch:02d}')
+    # pbar = tqdm(total=train_idx.size(0))
+    # pbar.set_description(f'Training Epoch {epoch:02d}')
 
     total_loss = total_correct = 0
     for batch_size, n_id, adjs in train_loader:
@@ -127,9 +139,9 @@ def train(epoch):
 
         total_loss += float(loss)
         total_correct += int(out.argmax(dim=-1).eq(y[n_id[:batch_size]]).sum())
-        pbar.update(batch_size)
+        #pbar.update(batch_size)
 
-    pbar.close()
+    # pbar.close()
 
     loss = total_loss / len(train_loader)
     approx_acc = total_correct / train_idx.size(0)
@@ -138,11 +150,13 @@ def train(epoch):
 
 
 @torch.no_grad()
-def test():
+def test(epoch, prune=False):
     model.eval()
 
     out = model.inference(x)
 
+    if prune == True:
+        recordloss = F.nll_loss(out, data.y,reduction='false').squeeze()
     y_true = y.cpu().unsqueeze(-1)
     y_pred = out.argmax(dim=-1, keepdim=True)
 
@@ -161,17 +175,6 @@ def test():
 
     return train_acc, val_acc, test_acc
 
-
-test_accs = []
-for run in range(1, 11):
-    print('')
-    print(f'Run {run:02d}:')
-    print('')
-
-    model.reset_parameters()
-    optimizer = torch.optim.Adam(model.parameters(), lr=0.001)
-
-    best_val_acc = final_test_acc = 0
     for epoch in range(1, 101):
         loss, acc = train(epoch)
         print(f'Epoch {epoch:02d}, Loss: {loss:.4f}, Approx. Train: {acc:.4f}')
@@ -186,9 +189,72 @@ for run in range(1, 11):
                 final_test_acc = test_acc
     test_accs.append(final_test_acc)
 
-test_acc = torch.tensor(test_accs)
-print('============================')
-print(f'Final Test: {test_acc.mean():.4f} ± {test_acc.std():.4f}')
 
+for epoch in range(start_epochs):
+    loss, acc = train(epoch)
+    # train_rocauc, valid_rocauc, test_rocauc = test(epoch=epoch)
+    # print(f'Loss: {loss:.4f}, Train: {train_rocauc:.4f}, '
+    #       f'Val: {valid_rocauc:.4f}, Test: {test_rocauc:.4f}')
+    logger.info('Epochs: {}, Loss: {:.4f}, Approx. Train:{}'.format(epoch+1, loss, acc))
+    if epoch > 50:
+        train_acc, val_acc, test_acc = test()
+        print(f'Epochs:{epoch}, Train: {train_acc:.4f}, Val: {val_acc:.4f}, '
+                  f'Test: {test_acc:.4f}')
+        if best < test_acc:
+            best = test_acc
+            # print(f'********************best roc_auc: {best:.4f}***********')
+            logger.info('********************best acc: {:.4f}'.format(best))
+ttepochs=0
+best_times =0
+best_auc_roc = []
+best_train_auc = []
+best_val_auc = []
+tr_best = 0
+val_best = 0
+for i in range(times):
+    time_best = 0
+    # print(f'ratio is {o_ratio ** (i+1)}')
+    logger.info(f'--------ratio is {ratio ** (i+1)}')
+    recloss = test(prune=True, epoch=0)
+    #logger.info(f'ratio: {ratio}')
+    del(test_loader)
+    train_loader.prune(recloss, ratio)
+    subgraph_loader = NeighborSampler(data.edge_index, node_idx=None, sizes=[-1],
+                                  batch_size=1024, shuffle=False,
+                                  num_workers=12)
+    for epoch in range(prune_epochs):
+        # print(f'*******************epochs : {ttepochs}*******************')
+        # logger.info('*******************epochs : {}*******************'.format(ttepochs))
+        loss = train(epoch)
+        train_rocauc, valid_rocauc, test_rocauc = test(epoch=epoch)
+        # print(f'ratio:{ratio:.4f} Loss: {loss:.4f}, Train: {train_rocauc:.4f}, '
+        #     f'Val: {valid_rocauc:.4f}, Test: {test_rocauc:.4f}')
+        logger.info('epochs : {}, Loss: {:.4f}, Train: {:.4f}, Val: {:.4f}, Test: {:.4f}'.format(ttepochs,loss, train_rocauc,valid_rocauc, test_rocauc))
+        ttepochs += 1
 
+        if time_best < test_rocauc:
+            time_best = test_rocauc
+            best_times = times
+            # print('+++++++++++++++best roc_auc: {:.4f} at time {}'.format(time_best,i))
+            logger.info('+++++++++++++++best test roc_auc: {:.4f} at time {}'.format(time_best,i))
+        if tr_best < train_rocauc:
+            tr_best = train_rocauc
+            best_times = times
+            # print('+++++++++++++++best roc_auc: {:.4f} at time {}'.format(time_best,i))
+            #logger.info('+++++++++++++++best train roc_auc: {:.4f} at time {}'.format(tr_best,i))
+        if val_best < valid_rocauc:
+            val_best = valid_rocauc
+            best_times = times
+            # print('+++++++++++++++best roc_auc: {:.4f} at time {}'.format(time_best,i))
+            logger.info('+++++++++++++++best valid roc_auc: {:.4f} at time {}'.format(val_best,i))
+    best_auc_roc.append(time_best)
+    best_train_auc.append(tr_best)
+    best_val_auc.append(val_best)
+global_best_id = np.argmax(best_auc_roc)
+global_best_id_tr = np.argmax(best_train_auc)
+global_best_id_val = np.argmax(best_val_auc)
+# print(f'best auc_roc:{best_auc_roc[global_best_id]} at {global_best_id} time')
+logger.info('best train auc_roc:{} at {} time'.format(best_train_auc[global_best_id_tr],global_best_id_tr))
+logger.info('best valid auc_roc:{} at {} time'.format(best_val_auc[global_best_id_val],global_best_id_val))
+logger.info('best auc_roc:{} at {} time'.format(best_auc_roc[global_best_id],global_best_id))
 
