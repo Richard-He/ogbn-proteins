@@ -20,14 +20,9 @@ prune_epochs = 400
 prune_set = 'train'
 #logging.basicConfig(filename= f'./log/test_{ratio}_{times}_{num_parts}.log', encoding = 'utf-8',
 #                    level=logging.DEBUG)
-<<<<<<< HEAD
 
 log_name = 'log/test_{}_{}_{}_{}_{}.log'.format(num_parts,ratio,start_epochs,prune_epochs,prune_set)
 logger.add(log_name)
-=======
-logger.add('log/test_{}_{}_{}_{}_{}.log'.format(num_parts,ratio,start_epochs,prune_epochs, prune_set))
-log_name = 'log/test_{}_{}_{}_{}_{}.log'.format(num_parts,ratio,start_epochs,prune_epochs,prune_set)
->>>>>>> 4a09b6bd9d1005bd54a518c1045a4a57820ee183
 logger.info('logname: {}'.format(log_name))
 logger.info('params: ratio {ratio}, times {times}, numparts {num_parts}, start epochs {start_epochs}, prune epochs {prune_epochs} ',
                                                                         ratio = ratio,
