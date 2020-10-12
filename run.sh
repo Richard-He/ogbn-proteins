@@ -1,1 +1,1 @@
-CUDA_VISIBLE_DEVICES=3 python original_product.py
+CUDA_VISIBLE_DEVICES=2 python original_protein.py
