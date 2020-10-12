@@ -10,14 +10,14 @@ from sampler import RandomNodeSampler
 from loguru import logger
 from utils import StyleAdapter
 
-ratio = 0.90
+ratio = 0.995
 times = 10
 num_parts = 15
-num_test_parts=15
+num_test_parts=10
 best = 0
 start_epochs = 500
 prune_epochs = 200
-prune_set = 'valid'
+prune_set = 'train'
 #logging.basicConfig(filename= f'./log/test_{ratio}_{times}_{num_parts}.log', encoding = 'utf-8',
 #                    level=logging.DEBUG)
 
@@ -180,10 +180,12 @@ best_train_auc = []
 best_val_auc = []
 tr_best = 0
 val_best = 0
+ttratio=[]
 for i in range(times):
     time_best = 0
     # print(f'ratio is {o_ratio ** (i+1)}')
     logger.info(f'--------ratio is {ratio ** (i+1)}')
+    ttratio.append(ratio**(i+1))
     recloss = test(prune=True, epoch=0)
     #logger.info(f'ratio: {ratio}')
     del(test_loader)
@@ -201,17 +203,14 @@ for i in range(times):
 
         if time_best < test_rocauc:
             time_best = test_rocauc
-            best_times = times
             # print('+++++++++++++++best roc_auc: {:.4f} at time {}'.format(time_best,i))
             logger.info('+++++++++++++++best test roc_auc: {:.4f} at time {}'.format(time_best,i))
         if tr_best < train_rocauc:
             tr_best = train_rocauc
-            best_times = times
             # print('+++++++++++++++best roc_auc: {:.4f} at time {}'.format(time_best,i))
             #logger.info('+++++++++++++++best train roc_auc: {:.4f} at time {}'.format(tr_best,i))
         if val_best < valid_rocauc:
             val_best = valid_rocauc
-            best_times = times
             # print('+++++++++++++++best roc_auc: {:.4f} at time {}'.format(time_best,i))
             logger.info('+++++++++++++++best valid roc_auc: {:.4f} at time {}'.format(val_best,i))
     best_auc_roc.append(time_best)
@@ -224,3 +223,4 @@ global_best_id_val = np.argmax(best_val_auc)
 logger.info('best train auc_roc:{} at {} time'.format(best_train_auc[global_best_id_tr],global_best_id_tr))
 logger.info('best valid auc_roc:{} at {} time'.format(best_val_auc[global_best_id_val],global_best_id_val))
 logger.info('best auc_roc:{} at {} time'.format(best_auc_roc[global_best_id],global_best_id))
+logger.info('best score: train: {},\n valid : {},\n test : {}\n, ratios : {}'.format(str(best_train_auc) ,str(best_val_auc), str(best_auc_roc),str(ttratio)))
