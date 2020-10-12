@@ -13,10 +13,10 @@ sizes=[10]*3
 batch_size = 512
 test_size = 1024
 ratio = 0.85
-times = 10
+times = 15
 best = 0
-start_epochs = 300
-prune_epochs = 300
+start_epochs = 250
+prune_epochs = 200
 prune_set = 'valid'
 
 log_name = 'log/test_{}_{}_{}_{}_{}_{}.log'.format(batch_size,test_size,ratio,start_epochs,prune_epochs,prune_set)
@@ -159,7 +159,7 @@ def train(epoch):
 
 
 @torch.no_grad()
-def test( prune=False):
+def test(prune=False):
     model.eval()
 
     out = model.inference(x)
@@ -242,7 +242,7 @@ for i in range(times):
         loss, acc = train(epoch)
         logger.info('Total Epochs: {}, Epochs: {}, Loss: {:.4f}, Approx. Train:{}'.format(ttepochs+1, epoch+1, loss, acc))
         if epoch % 10 == 0 and epoch != 0:
-            train_acc, valid_acc, test_acc = test(epoch=epoch)
+            train_acc, valid_acc, test_acc = test()
             # logger.info(f'ratio:{ratio:.4f} Loss: {loss:.4f}, Train: {train_rocauc:.4f}, '
             #     f'Val: {valid_rocauc:.4f}, Test: {test_rocauc:.4f}')
             logger.info('total epochs : {}, epochs : {} Loss: {:.4f}, Train: {:.4f}, Val: {:.4f}, Test: {:.4f}'.format(ttepochs,epoch,loss, train_acc, valid_acc, test_acc))
