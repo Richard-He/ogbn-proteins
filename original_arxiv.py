@@ -141,13 +141,12 @@ class Pruner(object):
         _,_,e_idx = subadj.coo()
         self.train_e_idx = e_idx.squeeze().long()
         self.train_edge_index = self.edge_index[:, self.train_e_idx] 
-        self.rest_e_id_x = torch.LongTensor(list(set(range(self.E))  - set(self.train_e_idx.tolist())))
+        self.rest_e_idx = torch.LongTensor(list(set(range(self.E))  - set(self.train_e_idx.tolist())))
         self.ratio = ratio
         self.loss = torch.zeros(N)
     
     def prune(self):
-        p_loss = loss[self.train_idx]
-        diff_loss = torch.abs(loss[self.train_edge_index[0]] - loss[self.train_edge_index[1]])
+        diff_loss = torch.abs(self.loss[self.train_edge_index[0]] - self.loss[self.train_edge_index[1]])
         # print(diff_loss.nonzero().size())
         # print(int(len(diff_loss)*ratio))
         _, mask = torch.topk(diff_loss, int(len(diff_loss)*self.ratio), largest=False)
@@ -157,6 +156,7 @@ class Pruner(object):
         self.train_e_idx = torch.arange(self.train_e_idx.size(0))
         self.rest_e_idx = torch.arange(self.train_e_idx.size(0),self.train_e_idx.size(0) + self.rest_e_idx.size(0))
         self.E = self.edge_index.size(1)
+        print(f'****************trainE : {self.train_e_idx.size(0)} ,restE:{self.rest_e_idx.size(0)}, totalE:{self.E}')
     
     def update_loss(self, loss):
         self.loss = loss
@@ -171,12 +171,12 @@ def main():
     parser.add_argument('--hidden_channels', type=int, default=256)
     parser.add_argument('--dropout', type=float, default=0.5)
     parser.add_argument('--lr', type=float, default=0.01)
-    parser.add_argument('--epochs', type=int, default=1000)
+    parser.add_argument('--epochs', type=int, default=500)
     parser.add_argument('--runs', type=int, default=1)
-    parser.add_argument('--prune_set', type=str, default='train')
-    parser.add_argument('--ratio', type=float, default=0.90)
-    parser.add_argument('--times', type=int, default=10)
-    parser.add_argument('--prune_epoch', type=int, default=500)
+    parser.add_argument('--prune_set', type=str, default='valid')
+    parser.add_argument('--ratio', type=float, default=0.)
+    parser.add_argument('--times', type=int, default=20)
+    parser.add_argument('--prune_epoch', type=int, default=300)
     args = parser.parse_args()
     
     log_name = f'log/test_{args.prune_set}_{args.ratio}_{args.epochs}_{args.prune_epoch}_{args.times}.log'
@@ -215,7 +215,7 @@ def main():
     col = torch.cat([torch.arange(0, N).cuda(), col],dim=0)
     edge_index = torch.cat([row,col]).view(2, -1)
     data.edge_index = edge_index
-    print(data.edge_index)
+    # print(data.edge_index)
     pruner = Pruner(edge_index.cpu(), split_idx, prune_set=args.prune_set, ratio=args.ratio)
     for run in range(args.runs):
         model.reset_parameters()
@@ -229,18 +229,20 @@ def main():
                 train_acc, valid_acc, test_acc = result
                 logger.info(f'Run: {run + 1:02d}, Epoch: {epoch:02d}, Loss: {loss:.4f}, Train: {100 * train_acc:.2f}%, Valid: {100 * valid_acc:.2f}% Test: {100 * test_acc:.2f}%')
 
-        logger1.print_statistics(run)
+        logger1.print_statistics(ratio=1)
         logger1.flush()
         for i in range(1, args.times+1):
             pruner.prune()
-            for epoch in range(1, 1 + args.prune_epochs):
+            for epoch in range(1, 1 + args.prune_epoch):
                 loss = train(model, data, train_idx, optimizer,pruner=pruner)
                 result = test(model, data, split_idx, evaluator,pruner=pruner)
                 logger1.add_result(run, result)
-            logger1.print_statistics(run)
-            logger1.flush()
-    logger1.print_statistics()
+                if epoch % args.log_steps == 0:
+                    train_acc, valid_acc, test_acc = result
+                    logger.info(f'Run: {run + 1:02d}, Epoch: {epoch:02d}, Loss: {loss:.4f}, Train: {100 * train_acc:.2f}%, Valid: {100 * valid_acc:.2f}% Test: {100 * test_acc:.2f}%')
 
+            logger1.print_statistics(ratio=args.ratio ** i)
+            logger1.flush()
 
 if __name__ == "__main__":
     main()

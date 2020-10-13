@@ -9,7 +9,7 @@ from sampler import NeighborSampler
 from torch_geometric.nn import GATConv
 from loguru import logger
 
-sizes=[10]*3
+sizes=[10] * 3
 batch_size = 512
 test_size = 1024
 ratio = 0.85
@@ -271,5 +271,5 @@ global_best_id_val = np.argmax(best_val_auc)
 logger.info('best train acc:{} at {} time'.format(best_train_auc[global_best_id_tr],global_best_id_tr))
 logger.info('best valid acc:{} at {} time'.format(best_val_auc[global_best_id_val],global_best_id_val))
 logger.info('best acc:{} at {} time'.format(best_auc_roc[global_best_id],global_best_id))
-logger.info('best score: train: {},\n valid : {},\n test : {}\n, ratios : {}'.format(str(best_train_auc) ,str(best_val_auc), str(best_auc_roc),str(ttratio)))
+logger.info('best score: train: {},valid : {}, test : {}, ratios : {}'.format(str(best_train_auc) ,str(best_val_auc), str(best_auc_roc),str(ttratio)))
 

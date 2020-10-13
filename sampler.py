@@ -42,7 +42,8 @@ class GraphSAINTSampler(torch.utils.data.DataLoader):
     """
     def __init__(self, data, batch_size: int, num_steps: int = 1,
                  sample_coverage: int = 0, save_dir: Optional[str] = None,
-                 log: bool = True, **kwargs):
+                 log: bool = True, prune = False, prune_set='train',
+                 **kwargs):
 
         assert data.edge_index is not None
         assert 'node_norm' not in data
@@ -62,11 +63,21 @@ class GraphSAINTSampler(torch.utils.data.DataLoader):
             sparse_sizes=(N, N))
 
         self.data = copy.copy(data)
-        self.data.edge_index = None
 
         super(GraphSAINTSampler,
               self).__init__(self, batch_size=1, collate_fn=self.__collate__,
                              **kwargs)
+        if prune == True:
+            if prune_set == 'train':
+                self.train_idx = self.data.train_mask.nonzero(as_tuple=False).squeeze()
+            else:
+                self.train_idx = (self.data.train_mask + self.data.valid_mask).nonzero(as_tuple=False).squeeze()                
+            subadj, _ = self.adj.saint_subgraph(self.train_idx)
+            # subadj = self.adj.to_dense()[self.train_idx][:,self.train_idx].view(-1)
+            _,_,e_idx = subadj.coo()
+            self.train_e_idx = e_idx.squeeze().long()
+            self.train_edge_index = self.data.edge_index[:, self.train_e_idx] 
+            self.rest_e_idx = torch.LongTensor(list(set(range(self.E))  - set(self.train_e_idx.tolist())))
 
         # if self.sample_coverage > 0:
         #     path = osp.join(save_dir or '', self.__filename__)
@@ -92,6 +103,32 @@ class GraphSAINTSampler(torch.utils.data.DataLoader):
         adj, _ = self.adj.saint_subgraph(node_idx)
         return node_idx, adj
 
+    def prune(self, loss, ratio=0):
+        diff_loss = torch.abs(loss[self.train_edge_index[0]] - loss[self.train_edge_index[1]])
+        # print(diff_loss.nonzero().size())
+        # print(int(len(diff_loss)*ratio))
+        
+        threshold, _ = torch.kthvalue(diff_loss, int(len(diff_loss)*ratio))
+        mask = (diff_loss <= threshold)
+        # self.train_edge_index = self.train_edge_index[:,mask]
+        # edge_index = torch.cat([self.train_edge_index,self.rest_edge_index], dim=1)
+        # self.data.edge_index = edge_index
+        self.train_e_idx = self.train_e_idx[mask]
+        self.train_edge_index = self.train_edge_index[:, mask]
+        self.data.edge_attr = self.data.edge_attr[torch.cat([self.train_e_idx, self.rest_e_idx])]
+        self.data.edge_index = self.data.edge_index[:,torch.cat([self.train_e_idx, self.rest_e_idx])]
+
+        # print(self.data.edge_attr.size(), self.data.edge_index.size())
+        self.train_e_idx = torch.arange(self.train_e_idx.size(0))
+        self.rest_e_idx = torch.arange(self.train_e_idx.size(0),self.train_e_idx.size(0) + self.rest_e_idx.size(0))
+        # print(len(self.train_e_idx),len(self.rest_e_idx), self.train_edge_index.size(),self.data.edge_index.size())
+        self.E = self.data.num_edges
+        self.adj = SparseTensor(
+            row=self.data.edge_index[0], col=self.data.edge_index[1],
+            value=torch.arange(self.E, device=self.data.edge_index.device),
+            sparse_sizes=(self.N, self.N)) 
+
+
     def __collate__(self, data_list):
         assert len(data_list) == 1
         node_idx, adj = data_list[0]
@@ -104,9 +141,9 @@ class GraphSAINTSampler(torch.utils.data.DataLoader):
         for key, item in self.data:
             if item.size(0) == self.N:
                 data[key] = item[node_idx]
-            elif item.size(0) == self.E:
+            elif item.size(0) == self.E and key != 'edge_index':
                 data[key] = item[edge_idx]
-            else:
+            elif key!= 'edge_index':
                 data[key] = item
 
         # if self.sample_coverage > 0:
@@ -320,7 +357,6 @@ class NeighborSampler(torch.utils.data.DataLoader):
 
 
     def prune(self, loss, ratio=0):
-        p_loss = loss[self.train_idx]
         diff_loss = torch.abs(loss[self.train_edge_index[0]] - loss[self.train_edge_index[1]])
         # print(diff_loss.nonzero().size())
         # print(int(len(diff_loss)*ratio))
@@ -448,7 +484,7 @@ class RandomNodeSampler(torch.utils.data.DataLoader):
         return idx
 
     def prune(self, loss, ratio=0):
-        p_loss = loss[self.train_idx]
+        #p_loss = loss[self.train_idx]
         diff_loss = torch.abs(loss[self.train_edge_index[0]] - loss[self.train_edge_index[1]])
         # print(diff_loss.nonzero().size())
         # print(int(len(diff_loss)*ratio))

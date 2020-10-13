@@ -5,6 +5,7 @@ class Logger(object):
     def __init__(self, runs, info=None):
         self.info = info
         self.results = [[] for _ in range(runs)]
+        self.runs = runs
 
     def add_result(self, run, result):
         assert len(result) == 3
@@ -13,13 +14,13 @@ class Logger(object):
 
     def flush(self):
         del(self.results)
-        self.results = [[]]
+        self.results = [[] for _ in range(self.runs)]
         
-    def print_statistics(self, run=None):
+    def print_statistics(self, ratio,  run=0):
         if run is not None:
             result = 100 * torch.tensor(self.results[run])
             argmax = result[:, 1].argmax().item()
-            logger.info(f'Run {run + 1:02d}:')
+            logger.info(f'Ratio {ratio :.4f}:')
             logger.info(f'Highest Train: {result[:, 0].max():.2f}')
             logger.info(f'Highest Valid: {result[:, 1].max():.2f}')
             logger.info(f'  Final Train: {result[argmax, 0]:.2f}')
