@@ -11,17 +11,17 @@ from loguru import logger
 from utils import StyleAdapter
 
 ratio = 0.995
-times = 10
+times = 20
 num_parts = 15
 num_test_parts=10
 best = 0
 start_epochs = 500
-prune_epochs = 200
+prune_epochs = 300
 prune_set = 'train'
 #logging.basicConfig(filename= f'./log/test_{ratio}_{times}_{num_parts}.log', encoding = 'utf-8',
 #                    level=logging.DEBUG)
 
-log_name = 'log/test_{}_{}_{}_{}_{}_{}.log'.format(num_parts,num_test_parts,ratio,start_epochs,prune_epochs,prune_set)
+log_name = 'log/protein_test_{}_{}_{}_{}_{}_{}.log'.format(num_parts,num_test_parts,ratio,start_epochs,prune_epochs,prune_set)
 logger.add(log_name)
 logger.info('logname: {}'.format(log_name))
 logger.info('params: ratio {ratio}, times {times}, numparts {num_parts}, start epochs {start_epochs}, prune epochs {prune_epochs} ',
@@ -30,7 +30,7 @@ logger.info('params: ratio {ratio}, times {times}, numparts {num_parts}, start e
                                                                         num_parts = num_parts,
                                                                         start_epochs = start_epochs,
                                                                         prune_epochs = prune_epochs)
-dataset = PygNodePropPredDataset('ogbn-proteins', root='/mnt/data/ogbdata')
+dataset = PygNodePropPredDataset('ogbn-proteins', root='/mnt/ogbdata/')
 splitted_idx = dataset.get_idx_split()
 data = dataset[0]
 data.node_species = None
@@ -223,4 +223,4 @@ global_best_id_val = np.argmax(best_val_auc)
 logger.info('best train auc_roc:{} at {} time'.format(best_train_auc[global_best_id_tr],global_best_id_tr))
 logger.info('best valid auc_roc:{} at {} time'.format(best_val_auc[global_best_id_val],global_best_id_val))
 logger.info('best auc_roc:{} at {} time'.format(best_auc_roc[global_best_id],global_best_id))
-logger.info('best score: train: {},\n valid : {},\n test : {}\n, ratios : {}'.format(str(best_train_auc) ,str(best_val_auc), str(best_auc_roc),str(ttratio)))
+logger.info('best score: train: {},valid : {}, test : {}, ratios : {}'.format(str(best_train_auc) ,str(best_val_auc), str(best_auc_roc),str(ttratio)))

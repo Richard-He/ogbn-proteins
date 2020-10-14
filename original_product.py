@@ -19,7 +19,7 @@ start_epochs = 250
 prune_epochs = 200
 prune_set = 'valid'
 
-log_name = 'log/test_{}_{}_{}_{}_{}_{}.log'.format(batch_size,test_size,ratio,start_epochs,prune_epochs,prune_set)
+log_name = 'log/product_test_{}_{}_{}_{}_{}_{}.log'.format(batch_size,test_size,ratio,start_epochs,prune_epochs,prune_set)
 logger.add(log_name)
 logger.info('logname: {}'.format(log_name))
 logger.info('params: ratio {ratio}, times {times}, batch size {num_parts}, start epochs {start_epochs}, prune epochs {prune_epochs} ',
@@ -28,7 +28,7 @@ logger.info('params: ratio {ratio}, times {times}, batch size {num_parts}, start
                                                                         num_parts = batch_size,
                                                                         start_epochs = start_epochs,
                                                                         prune_epochs = prune_epochs)
-dataset = PygNodePropPredDataset('ogbn-products', root='/mnt/data/ogbdata')
+dataset = PygNodePropPredDataset('ogbn-products', root='/mnt/ogbdata')
 split_idx = dataset.get_idx_split()
 evaluator = Evaluator(name='ogbn-products')
 data = dataset[0]

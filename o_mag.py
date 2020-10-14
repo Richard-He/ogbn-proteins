@@ -14,8 +14,7 @@ from torch_geometric.nn import MessagePassing
 
 from ogb.nodeproppred import PygNodePropPredDataset, Evaluator
 
-from mylogger import Logger
-from loguru import logger
+#from logger import Logger
 
 parser = argparse.ArgumentParser(description='OGBN-MAG (GraphSAINT)')
 parser.add_argument('--device', type=int, default=0)
@@ -23,34 +22,25 @@ parser.add_argument('--num_layers', type=int, default=2)
 parser.add_argument('--hidden_channels', type=int, default=64)
 parser.add_argument('--dropout', type=float, default=0.5)
 parser.add_argument('--lr', type=float, default=0.005)
-parser.add_argument('--epochs', type=int, default=50)
-parser.add_argument('--runs', type=int, default=1)
+parser.add_argument('--epochs', type=int, default=30)
+parser.add_argument('--runs', type=int, default=10)
 parser.add_argument('--batch_size', type=int, default=20000)
 parser.add_argument('--walk_length', type=int, default=2)
 parser.add_argument('--num_steps', type=int, default=30)
-parser.add_argument('--prune_set', type=str, default='train')
-parser.add_argument('--ratio', type=float, default=0.99)
-parser.add_argument('--times', type=int, default=15)
-parser.add_argument('--prune_epoch', type=int, default=100)
 args = parser.parse_args()
-
-
-
-log_name = f'log/mag_test_prune{args.prune_set}_ratio{args.ratio}_epochs{args.epochs}_pruneepoch{args.prune_epoch}_times{args.times}.log'
-logger.add(log_name)
-logger.info('logname: {}'.format(log_name))
-logger.info(args)
+print(args)
 
 dataset = PygNodePropPredDataset(name='ogbn-mag', root='/mnt/ogbdata/')
 data = dataset[0]
 split_idx = dataset.get_idx_split()
 evaluator = Evaluator(name='ogbn-mag')
-logger1 = Logger(args.runs, args)
+#logger = Logger(args.runs, args)
+
 # We do not consider those attributes for now.
 data.node_year_dict = None
 data.edge_reltype_dict = None
 
-# print(data)
+print(data)
 
 edge_index_dict = data.edge_index_dict
 
@@ -90,20 +80,15 @@ homo_data.y[local2global['paper']] = data.y_dict['paper']
 
 homo_data.train_mask = torch.zeros((node_type.size(0)), dtype=torch.bool)
 homo_data.train_mask[local2global['paper'][split_idx['train']['paper']]] = True
-homo_data.valid_mask = torch.zeros((node_type.size(0)), dtype=torch.bool)
-homo_data.valid_mask[local2global['paper'][split_idx['valid']['paper']]] = True
 
-rec_loss = torch.zeros(homo_data.num_nodes)
-#print(homo_data)
+print(homo_data)
 
 train_loader = GraphSAINTRandomWalkSampler(homo_data,
                                            batch_size=args.batch_size,
                                            walk_length=args.num_layers,
                                            num_steps=args.num_steps,
                                            sample_coverage=0,
-                                           save_dir=dataset.processed_dir,
-                                           prune=True
-                                           )
+                                           save_dir=dataset.processed_dir)
 
 # Map informations to their canonical type.
 x_dict = {}
@@ -226,7 +211,7 @@ class RGCN(torch.nn.Module):
                 x = F.relu(x)
                 x = F.dropout(x, p=0.5, training=self.training)
 
-        return x
+        return x.log_softmax(dim=-1)
 
     def inference(self, x_dict, edge_index_dict, key2int):
         # We can perform full-batch inference on GPU.
@@ -269,13 +254,13 @@ model = RGCN(128, args.hidden_channels, dataset.num_classes, args.num_layers,
              len(edge_index_dict.keys())).to(device)
 
 x_dict = {k: v.to(device) for k, v in x_dict.items()}
-criterion = torch.nn.CrossEntropyLoss(reduction='none')
+
 
 def train(epoch):
     model.train()
 
-    # pbar = tqdm(total=args.num_steps * args.batch_size)
-    # pbar.set_description(f'Epoch {epoch:02d}')
+    pbar = tqdm(total=args.num_steps * args.batch_size)
+    pbar.set_description(f'Epoch {epoch:02d}')
 
     total_loss = total_examples = 0
     for data in train_loader:
@@ -283,31 +268,18 @@ def train(epoch):
         optimizer.zero_grad()
         out = model(x_dict, data.edge_index, data.edge_attr, data.node_type,
                     data.local_node_idx)
-        #print(out,data.y.squeeze())
-        # with torch.no_grad():
-        #     rec_loss = F.nll_loss(out, data.y.squeeze(), reduction='none').squeeze()
         out = out[data.train_mask]
         y = data.y[data.train_mask].squeeze()
-        # print(out.size())
-        # print(y.size())
-        # print('ymin', y.min(), 'ymax', y.max())
-        # print((y==-1).nonzero().squeeze())
-        # print((y==-1).nonzero().size())
-        loss = criterion(out, y).squeeze()
-        with torch.no_grad():
-            rec_loss[data.node_idx[data.train_mask]] = loss.data.cpu()
-        #rec_loss[data.node_idx] = loss
-        # print(data.train_mask)
-        loss = loss.mean()
+        loss = F.nll_loss(out, y)
         loss.backward()
         optimizer.step()
 
         num_examples = data.train_mask.sum().item()
         total_loss += loss.item() * num_examples
         total_examples += num_examples
-        # pbar.update(args.batch_size)
+        pbar.update(args.batch_size)
 
-    # pbar.close()
+    pbar.close()
 
     return total_loss / total_examples
 
@@ -318,6 +290,7 @@ def test():
 
     out = model.inference(x_dict, edge_index_dict, key2int)
     out = out[key2int['paper']]
+
     y_pred = out.argmax(dim=-1, keepdim=True).cpu()
     y_true = data.y_dict['paper']
 
@@ -345,20 +318,13 @@ for run in range(args.runs):
         loss = train(epoch)
         torch.cuda.empty_cache()
         result = test()
-        logger1.add_result(run, result)
+        #logger.add_result(run, result)
         train_acc, valid_acc, test_acc = result
-        logger.info(f'Run: {run + 1:02d}, Epoch: {epoch:02d}, Loss: {loss:.4f}, Train: {100 * train_acc:.2f}%, Valid: {100 * valid_acc:.2f}%, Test: {100 * test_acc:.2f}%')
-    logger1.print_statistics(ratio=1)
-    logger1.flush()
-    for i in range(1, args.times+1):
-        train_loader.prune(rec_loss, args.ratio)
-        for epoch in range(1, 1 + args.prune_epoch):
-            loss = train(epoch)
-            result = test()
-            logger1.add_result(run, result)
-            train_acc, valid_acc, test_acc = result
-            logger.info(f'Run: {run + 1:02d}, Epoch: {epoch:02d}, Loss: {loss:.4f}, Train: {100 * train_acc:.2f}%, Valid: {100 * valid_acc:.2f}% Test: {100 * test_acc:.2f}%')
-
-        logger1.print_statistics(ratio=args.ratio ** i)
-        logger1.flush()
-    
+        print(f'Run: {run + 1:02d}, '
+              f'Epoch: {epoch:02d}, '
+              f'Loss: {loss:.4f}, '
+              f'Train: {100 * train_acc:.2f}%, '
+              f'Valid: {100 * valid_acc:.2f}%, '
+              f'Test: {100 * test_acc:.2f}%')
+    #logger.print_statistics(run)
+#logger.print_statistics()

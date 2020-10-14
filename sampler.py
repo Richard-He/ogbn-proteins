@@ -105,19 +105,20 @@ class GraphSAINTSampler(torch.utils.data.DataLoader):
 
     def prune(self, loss, ratio=0):
         diff_loss = torch.abs(loss[self.train_edge_index[0]] - loss[self.train_edge_index[1]])
-        # print(diff_loss.nonzero().size())
+        print(diff_loss.nonzero().size())
         # print(int(len(diff_loss)*ratio))
-        
-        threshold, _ = torch.kthvalue(diff_loss, int(len(diff_loss)*ratio))
-        mask = (diff_loss <= threshold)
+        # print(diff_loss)
+        _, mask = torch.topk(diff_loss, int(diff_loss.size(0)*ratio), largest=False)
+        # print(mask.size())
+        # mask = (diff_loss <= threshold)
         # self.train_edge_index = self.train_edge_index[:,mask]
         # edge_index = torch.cat([self.train_edge_index,self.rest_edge_index], dim=1)
         # self.data.edge_index = edge_index
         self.train_e_idx = self.train_e_idx[mask]
         self.train_edge_index = self.train_edge_index[:, mask]
+        # print('train', self.train_edge_index.size())
         self.data.edge_attr = self.data.edge_attr[torch.cat([self.train_e_idx, self.rest_e_idx])]
         self.data.edge_index = self.data.edge_index[:,torch.cat([self.train_e_idx, self.rest_e_idx])]
-
         # print(self.data.edge_attr.size(), self.data.edge_index.size())
         self.train_e_idx = torch.arange(self.train_e_idx.size(0))
         self.rest_e_idx = torch.arange(self.train_e_idx.size(0),self.train_e_idx.size(0) + self.rest_e_idx.size(0))
@@ -135,6 +136,7 @@ class GraphSAINTSampler(torch.utils.data.DataLoader):
 
         data = self.data.__class__()
         data.num_nodes = node_idx.size(0)
+        data.node_idx = node_idx
         row, col, edge_idx = adj.coo()
         data.edge_index = torch.stack([row, col], dim=0)
 
@@ -358,7 +360,7 @@ class NeighborSampler(torch.utils.data.DataLoader):
 
     def prune(self, loss, ratio=0):
         diff_loss = torch.abs(loss[self.train_edge_index[0]] - loss[self.train_edge_index[1]])
-        # print(diff_loss.nonzero().size())
+        #print(diff_loss.nonzero().size())
         # print(int(len(diff_loss)*ratio))
         _, mask = torch.topk(diff_loss, int(len(diff_loss)*ratio), largest=False)
         #print('len diff_loss', len(diff_loss))

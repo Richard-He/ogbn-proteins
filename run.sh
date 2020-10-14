@@ -1,1 +1,1 @@
-CUDA_VISIBLE_DEVICES=2 python original_mag.py
+CUDA_VISIBLE_DEVICES=1  python original_protein.py
