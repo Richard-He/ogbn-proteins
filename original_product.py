@@ -12,14 +12,17 @@ from loguru import logger
 sizes=[10] * 3
 batch_size = 512
 test_size = 1024
-ratio = 0.85
+ratio = 0.95
 times = 15
 best = 0
-start_epochs = 250
+start_epochs = 200
+#250
 prune_epochs = 200
-prune_set = 'valid'
+#200
+prune_set = 'train'
+reset = True
 
-log_name = 'log/product_test_{}_{}_{}_{}_{}_{}.log'.format(batch_size,test_size,ratio,start_epochs,prune_epochs,prune_set)
+log_name = 'log/product_test_{}_{}_{}_{}_{}_{}_{}.log'.format(batch_size,test_size,ratio,start_epochs,prune_epochs,prune_set,reset)
 logger.add(log_name)
 logger.info('logname: {}'.format(log_name))
 logger.info('params: ratio {ratio}, times {times}, batch size {num_parts}, start epochs {start_epochs}, prune epochs {prune_epochs} ',
@@ -239,6 +242,8 @@ for i in range(times):
     for epoch in range(prune_epochs):
         # logger.info(f'*******************epochs : {ttepochs}*******************')
         # logger.info('*******************epochs : {}*******************'.format(ttepochs))
+        if reset == True:
+            model.reset_parameters()
         loss, acc = train(epoch)
         logger.info('Total Epochs: {}, Epochs: {}, Loss: {:.4f}, Approx. Train:{}'.format(ttepochs+1, epoch+1, loss, acc))
         if epoch % 10 == 0 and epoch != 0:

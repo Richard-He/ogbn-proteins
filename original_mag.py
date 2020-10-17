@@ -32,6 +32,7 @@ parser.add_argument('--prune_set', type=str, default='train')
 parser.add_argument('--ratio', type=float, default=0.99)
 parser.add_argument('--times', type=int, default=15)
 parser.add_argument('--prune_epoch', type=int, default=100)
+parser.add_argument('--reset_param',type=bool, default=False)
 args = parser.parse_args()
 
 
@@ -352,6 +353,9 @@ for run in range(args.runs):
     logger1.flush()
     for i in range(1, args.times+1):
         train_loader.prune(rec_loss, args.ratio)
+        if args.reset_param == True:
+            model.reset_parameters()
+            
         for epoch in range(1, 1 + args.prune_epoch):
             loss = train(epoch)
             result = test()

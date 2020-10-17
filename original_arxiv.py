@@ -177,6 +177,7 @@ def main():
     parser.add_argument('--ratio', type=float, default=0.)
     parser.add_argument('--times', type=int, default=20)
     parser.add_argument('--prune_epoch', type=int, default=300)
+    parser.add_argument('--reset_param',type=bool, default=False)
     args = parser.parse_args()
     
     log_name = f'log/arxivtest_{args.prune_set}_{args.ratio}_{args.epochs}_{args.prune_epoch}_{args.times}.log'
@@ -233,6 +234,8 @@ def main():
         logger1.flush()
         for i in range(1, args.times+1):
             pruner.prune()
+            if reset_param == True:
+                model.reset_parameters()
             for epoch in range(1, 1 + args.prune_epoch):
                 loss = train(model, data, train_idx, optimizer,pruner=pruner)
                 result = test(model, data, split_idx, evaluator,pruner=pruner)
