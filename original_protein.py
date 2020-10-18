@@ -16,13 +16,13 @@ num_parts = 15
 num_test_parts=10
 best = 0
 start_epochs = 400
-prune_epochs = 400
+prune_epochs = 600
 prune_set = 'train'
 reset = True
 #logging.basicConfig(filename= f'./log/test_{ratio}_{times}_{num_parts}.log', encoding = 'utf-8',
 #                    level=logging.DEBUG)
 
-log_name = 'log/protein_test_{}_{}_{}_{}_{}_{}_{}.log'.format(num_parts,num_test_parts,ratio,start_epochs,prune_epochs,prune_set,reset)
+log_name = 'log/protein_test_full_reset_{}_{}_{}_{}_{}_{}_{}.log'.format(num_parts,num_test_parts,ratio,start_epochs,prune_epochs,prune_set,reset)
 logger.add(log_name)
 logger.info('logname: {}'.format(log_name))
 logger.info('params: ratio {ratio}, times {times}, numparts {num_parts}, start epochs {start_epochs}, prune epochs {prune_epochs} ',
@@ -89,6 +89,9 @@ class DeeperGCN(torch.nn.Module):
     def reset(self):
         for layer in self.layers:
             layer.reset_parameters()
+        self.lin.reset_parameters()
+        self.node_encoder.reset_parameters()
+        self.edge_encoder.reset_parameters()
 
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 model = DeeperGCN(hidden_channels=64, num_layers=28).to(device)
@@ -197,6 +200,9 @@ for i in range(times):
     test_loader = RandomNodeSampler(train_loader.data, num_edges=train_loader.data.edge_index.size(1), num_parts=num_parts, num_workers=5)
     if reset:
         model.reset()
+        tr_best=0
+        val_best=0
+        time_best=0
         print('reset_done')
     for epoch in range(prune_epochs):
         # print(f'*******************epochs : {ttepochs}*******************')
