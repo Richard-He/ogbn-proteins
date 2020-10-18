@@ -8,6 +8,7 @@ from ogb.nodeproppred import PygNodePropPredDataset, Evaluator
 from sampler import NeighborSampler
 from torch_geometric.nn import GATConv
 from loguru import logger
+import numpy as np
 
 sizes=[10] * 3
 batch_size = 512
