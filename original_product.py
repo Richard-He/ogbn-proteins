@@ -21,8 +21,9 @@ prune_epochs = 200
 #200
 prune_set = 'train'
 reset = True
+model = 'SAGE'
 
-log_name = 'log/product_test_{}_{}_{}_{}_{}_{}_{}.log'.format(batch_size,test_size,ratio,start_epochs,prune_epochs,prune_set,reset)
+log_name = 'log/product_test_{}_{}_{}_{}_{}_{}_{}_{}.log'.format(batch_size,test_size,ratio,start_epochs,prune_epochs,prune_set,reset,model)
 logger.add(log_name)
 logger.info('logname: {}'.format(log_name))
 logger.info('params: ratio {ratio}, times {times}, batch size {num_parts}, start epochs {start_epochs}, prune epochs {prune_epochs} ',
@@ -122,10 +123,109 @@ class GAT(torch.nn.Module):
 
         return x_all
 
+class GCN(torch.nn.Module):
+    def __init__(self, in_channels, hidden_channels, out_channels, num_layers,
+                 dropout=0.2):
+        super(GCN, self).__init__()
+
+        self.convs = torch.nn.ModuleList()
+        self.convs.append(
+            GCNConv(in_channels, hidden_channels, normalize=False))
+        for _ in range(num_layers - 2):
+            self.convs.append(
+                GCNConv(hidden_channels, hidden_channels, normalize=False))
+        self.convs.append(
+            GCNConv(hidden_channels, out_channels, normalize=False))
+
+        self.dropout = dropout
+
+    def reset_parameters(self):
+        for conv in self.convs:
+            conv.reset_parameters()
+
+    def forward(self, x, adj_t):
+        for conv in self.convs[:-1]:
+            x = conv(x, adj_t)
+            x = F.relu(x)
+            x = F.dropout(x, p=self.dropout, training=self.training)
+        x = self.convs[-1](x, adj_t)
+        return x
+    
+    def inference(self, x_all):
+
+        for i, conv in enumerate(self.convs):
+            xs = []
+            for batch_size, n_id, adj in subgraph_loader:
+                edge_index, _, size = adj.to(device)
+                x = x_all[n_id].to(device)
+                x_target = x[:size[1]]
+                x = conv((x, x_target), edge_index)
+                if i != len(self.convs) - 1:
+                    x = F.relu(x)
+                xs.append(x.cpu())
+            x_all = torch.cat(xs, dim=0)
+
+
+        return x_all
+
+
+class SAGE(torch.nn.Module):
+    def __init__(self, in_channels, hidden_channels, out_channels, num_layers,
+                 dropout=0.2):
+        super(SAGE, self).__init__()
+
+        self.convs = torch.nn.ModuleList()
+        self.convs.append(SAGEConv(in_channels, hidden_channels))
+        for _ in range(num_layers - 2):
+            self.convs.append(SAGEConv(hidden_channels, hidden_channels))
+        self.convs.append(SAGEConv(hidden_channels, out_channels))
+
+        self.dropout = dropout
+
+    def reset_parameters(self):
+        for conv in self.convs:
+            conv.reset_parameters()
+
+    def forward(self, x, edge_index):
+        for conv in self.convs[:-1]:
+            x = conv(x, edge_index)
+            x = F.relu(x)
+            x = F.dropout(x, p=self.dropout, training=self.training)
+        x = self.convs[-1](x, edge_index)
+        return torch.log_softmax(x, dim=-1)
+
+    def reset_parameters(self):
+        for conv in self.convs:
+            conv.reset_parameters()
+    
+    def inference(self, x_all):
+
+        for i, conv in enumerate(self.convs):
+            xs = []
+            for batch_size, n_id, adj in subgraph_loader:
+                edge_index, _, size = adj.to(device)
+                x = x_all[n_id].to(device)
+                x_target = x[:size[1]]
+                x = conv((x, x_target), edge_index)
+                if i != len(self.convs) - 1:
+                    x = F.relu(x)
+                xs.append(x.cpu())
+            x_all = torch.cat(xs, dim=0)
+
+
+        return x_all
+    
+
 
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-model = GAT(dataset.num_features, 128, dataset.num_classes, num_layers=3,
-            heads=4)
+if model == 'GAT':
+    model = GAT(dataset.num_features, 128, dataset.num_classes, num_layers=3,
+                heads=4)
+elif model = 'SAGE':
+    model = SAGE(dataset.num_features, 128, dataset.num_classes, num_layers=3)
+elif model == 'GCN':
+    model = GCN(dataset.num_features, 128, dataset.num_classes, num_layers=3)
+
 model = model.to(device)
 optimizer = torch.optim.Adam(model.parameters(), lr=0.001)
 model.reset_parameters()
