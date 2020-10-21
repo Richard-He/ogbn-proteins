@@ -3,7 +3,7 @@ import os.path as osp
 
 import torch
 from tqdm import tqdm
-from torch_sparse import SparseTensor
+from torch_sparse import SparseTensor, spmm
 import logging
 from typing import List, Optional, Tuple, NamedTuple
 
@@ -42,7 +42,7 @@ class GraphSAINTSampler(torch.utils.data.DataLoader):
     """
     def __init__(self, data, batch_size: int, num_steps: int = 1,
                  sample_coverage: int = 0, save_dir: Optional[str] = None,
-                 log: bool = True, prune = False, prune_set='train',
+                 log: bool = True, prune = False, prune_set='train', prune_type='adaptive',
                  **kwargs):
 
         assert data.edge_index is not None
@@ -103,12 +103,15 @@ class GraphSAINTSampler(torch.utils.data.DataLoader):
         adj, _ = self.adj.saint_subgraph(node_idx)
         return node_idx, adj
 
-    def prune(self, loss, ratio=0):
-        diff_loss = torch.abs(loss[self.train_edge_index[0]] - loss[self.train_edge_index[1]])
-        print(diff_loss.nonzero().size())
-        # print(int(len(diff_loss)*ratio))
-        # print(diff_loss)
-        _, mask = torch.topk(diff_loss, int(diff_loss.size(0)*ratio), largest=False)
+    def prune(self, loss, ratio=0, naive=False):
+        if naive == False:
+            diff_loss = torch.abs(loss[self.train_edge_index[0]] - loss[self.train_edge_index[1]])
+            print(diff_loss.nonzero().size())
+            # print(int(len(diff_loss)*ratio))
+            # print(diff_loss)
+            _, mask = torch.topk(diff_loss, int(diff_loss.size(0)*ratio), largest=False)
+        else:
+            mask = torch.randperm(self.E)[:int(self.E)*ratio]
         # print(mask.size())
         # mask = (diff_loss <= threshold)
         # self.train_edge_index = self.train_edge_index[:,mask]
@@ -319,6 +322,7 @@ class NeighborSampler(torch.utils.data.DataLoader):
                  num_nodes: Optional[int] = None,
                  flow: str = "source_to_target", 
                  prune=False, prune_set='train',
+                 prune_type='adaptive',
                  **kwargs):
 
         self.N = N = int(edge_index.max() + 1) if num_nodes is None else num_nodes
@@ -356,13 +360,23 @@ class NeighborSampler(torch.utils.data.DataLoader):
             self.train_edge_index = self.edge_index[:, self.train_e_idx] 
             self.rest_e_idx = torch.LongTensor(list(set(range(self.E))  - set(self.train_e_idx.tolist())))
 
+    # def prune_naive(self, ratio=0):
+    #     mask = torch.randperm(self.E)
 
+    #     edge_index, values = self.adj.coo()
+    #     newvalues = torch.zeros(edge_index.size(1))
+    #     newvalues[values>0] = 1
+    #     num_edges = spmm(edge_index, values, 1, values.size)
+        
 
-    def prune(self, loss, ratio=0):
-        diff_loss = torch.abs(loss[self.train_edge_index[0]] - loss[self.train_edge_index[1]])
-        #print(diff_loss.nonzero().size())
-        # print(int(len(diff_loss)*ratio))
-        _, mask = torch.topk(diff_loss, int(len(diff_loss)*ratio), largest=False)
+    def prune(self, loss, ratio=0, naive=False):
+        if naive == False:
+            diff_loss = torch.abs(loss[self.train_edge_index[0]] - loss[self.train_edge_index[1]])
+            #print(diff_loss.nonzero().size())
+            # print(int(len(diff_loss)*ratio))
+            _, mask = torch.topk(diff_loss, int(len(diff_loss)*ratio), largest=False)
+        else:
+            mask = torch.randperm(self.E)[:int(self.E)*ratio]
         #print('len diff_loss', len(diff_loss))
         #print('len mask', len(mask))
         # mask = (diff_loss < threshold)
@@ -485,15 +499,18 @@ class RandomNodeSampler(torch.utils.data.DataLoader):
     def __getitem__(self, idx):
         return idx
 
-    def prune(self, loss, ratio=0):
+    def prune(self, loss, ratio=0, naive=False):
         #p_loss = loss[self.train_idx]
-        diff_loss = torch.abs(loss[self.train_edge_index[0]] - loss[self.train_edge_index[1]])
-        # print(diff_loss.nonzero().size())
-        # print(int(len(diff_loss)*ratio))
-        
-        threshold, _ = torch.kthvalue(diff_loss, int(len(diff_loss)*ratio))
-        print('len diff_loss', len(diff_loss))
-        mask = (diff_loss < threshold)
+        if naive == False:
+            diff_loss = torch.abs(loss[self.train_edge_index[0]] - loss[self.train_edge_index[1]])
+            # print(diff_loss.nonzero().size())
+            # print(int(len(diff_loss)*ratio))
+            
+            threshold, _ = torch.kthvalue(diff_loss, int(len(diff_loss)*ratio))
+            print('len diff_loss', len(diff_loss))
+            mask = (diff_loss < threshold)
+        else:
+            mask = torch.randperm(self.E)[:int(self.E)*ratio]
         # self.train_edge_index = self.train_edge_index[:,mask]
         # edge_index = torch.cat([self.train_edge_index,self.rest_edge_index], dim=1)
         # self.data.edge_index = edge_index

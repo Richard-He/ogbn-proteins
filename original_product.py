@@ -23,8 +23,10 @@ prune_epochs = 200
 prune_set = 'train'
 reset = True
 model = 'SAGE'
+prune_tp = 'naive'
+naive = False if prune_tp=='naive' else True
 
-log_name = 'log/product_test_{}_{}_{}_{}_{}_{}_{}_{}.log'.format(batch_size,test_size,ratio,start_epochs,prune_epochs,prune_set,reset,model)
+log_name = 'log/product{}_test_{}_{}_{}_{}_{}_{}_{}_{}.log'.format(prune_tp,batch_size,test_size,ratio,start_epochs,prune_epochs,prune_set,reset,model)
 logger.add(log_name)
 logger.info('logname: {}'.format(log_name))
 logger.info('params: ratio {ratio}, times {times}, batch size {num_parts}, start epochs {start_epochs}, prune epochs {prune_epochs} ',
@@ -336,7 +338,7 @@ for i in range(times):
     logger.info(f'--------ratio is {ratio ** (i+1)}')
     #logger.info(f'ratio: {ratio}')
     del(subgraph_loader)
-    train_loader.prune(recordloss, ratio)
+    train_loader.prune(recordloss, ratio, naive=naive)
     subgraph_loader = NeighborSampler(train_loader.edge_index, node_idx=None, sizes=[-1],
                                   batch_size=1024, shuffle=False,
                                   num_workers=12)

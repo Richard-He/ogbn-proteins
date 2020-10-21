@@ -19,10 +19,11 @@ start_epochs = 400
 prune_epochs = 600
 prune_set = 'train'
 reset = True
+naive = False
 #logging.basicConfig(filename= f'./log/test_{ratio}_{times}_{num_parts}.log', encoding = 'utf-8',
 #                    level=logging.DEBUG)
 
-log_name = 'log/protein_test_full_reset_{}_{}_{}_{}_{}_{}_{}.log'.format(num_parts,num_test_parts,ratio,start_epochs,prune_epochs,prune_set,reset)
+log_name = 'log/protein_naive_{}_test_full_reset_{}_{}_{}_{}_{}_{}_{}.log'.format(naive,num_parts,num_test_parts,ratio,start_epochs,prune_epochs,prune_set,reset)
 logger.add(log_name)
 logger.info('logname: {}'.format(log_name))
 logger.info('params: ratio {ratio}, times {times}, numparts {num_parts}, start epochs {start_epochs}, prune epochs {prune_epochs} ',

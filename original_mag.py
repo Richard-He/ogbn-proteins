@@ -13,7 +13,7 @@ from torch_geometric.utils.hetero import group_hetero_graph
 from torch_geometric.nn import MessagePassing
 
 from ogb.nodeproppred import PygNodePropPredDataset, Evaluator
-
+import numpy as np
 from mylogger import Logger
 from loguru import logger
 
@@ -21,23 +21,24 @@ parser = argparse.ArgumentParser(description='OGBN-MAG (GraphSAINT)')
 parser.add_argument('--device', type=int, default=0)
 parser.add_argument('--num_layers', type=int, default=2)
 parser.add_argument('--hidden_channels', type=int, default=64)
-parser.add_argument('--dropout', type=float, default=0.5)
+parser.add_argument('--dropout', type=float, default=0.2)
 parser.add_argument('--lr', type=float, default=0.005)
 parser.add_argument('--epochs', type=int, default=50)
 parser.add_argument('--runs', type=int, default=1)
-parser.add_argument('--batch_size', type=int, default=20000)
+parser.add_argument('--batch_size', type=int, default=60000)
 parser.add_argument('--walk_length', type=int, default=2)
 parser.add_argument('--num_steps', type=int, default=30)
 parser.add_argument('--prune_set', type=str, default='train')
-parser.add_argument('--ratio', type=float, default=0.99)
-parser.add_argument('--times', type=int, default=15)
+parser.add_argument('--ratio', type=float, default=0.999)
+parser.add_argument('--times', type=int, default=50)
 parser.add_argument('--prune_epoch', type=int, default=100)
-parser.add_argument('--reset_param',type=bool, default=False)
+parser.add_argument('--reset_param',type=bool, default=True)
+parser.add_argument('--naive',type=bool,default=False)
 args = parser.parse_args()
 
 
 
-log_name = f'log/mag_test_prune{args.prune_set}_ratio{args.ratio}_epochs{args.epochs}_pruneepoch{args.prune_epoch}_times{args.times}.log'
+log_name = f'log/mag_naive_{args.naive}_test_prune{args.prune_set}_ratio{args.ratio}_batch_size{args.batch_size}_epochs{args.epochs}_pruneepoch{args.prune_epoch}_times{args.times}_reset{args.reset_param}.log'
 logger.add(log_name)
 logger.info('logname: {}'.format(log_name))
 logger.info(args)
@@ -352,10 +353,10 @@ for run in range(args.runs):
     logger1.print_statistics(ratio=1)
     logger1.flush()
     for i in range(1, args.times+1):
-        train_loader.prune(rec_loss, args.ratio)
+        train_loader.prune(rec_loss, args.ratio, naive=args.naive)
         if args.reset_param == True:
             model.reset_parameters()
-            
+
         for epoch in range(1, 1 + args.prune_epoch):
             loss = train(epoch)
             result = test()

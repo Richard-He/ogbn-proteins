@@ -12,6 +12,7 @@ from torch_sparse import SparseTensor
 import logging
 from typing import List, Optional, Tuple, NamedTuple
 from loguru import logger
+import numpy as np
 from mylogger import Logger
 
 class GCN(torch.nn.Module):
@@ -178,6 +179,7 @@ def main():
     parser.add_argument('--times', type=int, default=20)
     parser.add_argument('--prune_epoch', type=int, default=300)
     parser.add_argument('--reset_param',type=bool, default=False)
+    parser.add_argument('--naive', type=bool, default=False)
     args = parser.parse_args()
     
     log_name = f'log/arxivtest_{args.prune_set}_{args.ratio}_{args.epochs}_{args.prune_epoch}_{args.times}.log'
