@@ -16,9 +16,9 @@ test_size = 1024
 ratio = 0.95
 times = 15
 best = 0
-start_epochs = 1
+start_epochs = 150
 #250
-prune_epochs = 1
+prune_epochs = 200
 #200
 prune_set = 'train'
 reset = True
@@ -327,6 +327,7 @@ best_times =0
 best_auc_roc = []
 best_train_auc = []
 best_val_auc = []
+ttratio= []
 tr_best = 0
 val_best = 0
 for i in range(times):
@@ -335,6 +336,7 @@ for i in range(times):
     print(train_acc, valid_acc,test_acc)
     # logger.info(f'ratio is {o_ratio ** (i+1)}')
     logger.info(f'--------ratio is {ratio ** (i+1)}')
+    ttratio.append(ratio**(i+1))
     #logger.info(f'ratio: {ratio}')
     del(subgraph_loader)
     train_loader.prune(recordloss, ratio, naive=naive)
