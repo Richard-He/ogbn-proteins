@@ -16,17 +16,16 @@ test_size = 1024
 ratio = 0.95
 times = 15
 best = 0
-start_epochs = 200
+start_epochs = 1
 #250
-prune_epochs = 200
+prune_epochs = 1
 #200
 prune_set = 'train'
 reset = True
-model = 'SAGE'
-prune_tp = 'naive'
-naive = False if prune_tp=='naive' else True
+model = 'GAT'
+naive = True
 
-log_name = 'log/product{}_test_{}_{}_{}_{}_{}_{}_{}_{}.log'.format(prune_tp,batch_size,test_size,ratio,start_epochs,prune_epochs,prune_set,reset,model)
+log_name = 'log/product_naive_{}_test_{}_{}_{}_{}_{}_{}_{}_{}.log'.format(naive,batch_size,test_size,ratio,start_epochs,prune_epochs,prune_set,reset,model)
 logger.add(log_name)
 logger.info('logname: {}'.format(log_name))
 logger.info('params: ratio {ratio}, times {times}, batch size {num_parts}, start epochs {start_epochs}, prune epochs {prune_epochs} ',
@@ -224,10 +223,10 @@ device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 if model == 'GAT':
     model = GAT(dataset.num_features, 128, dataset.num_classes, num_layers=3,
                 heads=4)
-elif model = 'SAGE':
+elif model == 'SAGE':
     model = SAGE(dataset.num_features, 128, dataset.num_classes, num_layers=3)
-elif model == 'GCN':
-    model = GCN(dataset.num_features, 128, dataset.num_classes, num_layers=3)
+# elif model == 'GCN':
+#     model = GCN(dataset.num_features, 128, dataset.num_classes, num_layers=3)
 
 model = model.to(device)
 optimizer = torch.optim.Adam(model.parameters(), lr=0.001)

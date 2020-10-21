@@ -111,7 +111,8 @@ class GraphSAINTSampler(torch.utils.data.DataLoader):
             # print(diff_loss)
             _, mask = torch.topk(diff_loss, int(diff_loss.size(0)*ratio), largest=False)
         else:
-            mask = torch.randperm(self.E)[:int(self.E)*ratio]
+            newE =self.train_edge_index.size(1)
+            mask = torch.randperm(newE)[:int(newE*ratio)]
         # print(mask.size())
         # mask = (diff_loss <= threshold)
         # self.train_edge_index = self.train_edge_index[:,mask]
@@ -376,7 +377,8 @@ class NeighborSampler(torch.utils.data.DataLoader):
             # print(int(len(diff_loss)*ratio))
             _, mask = torch.topk(diff_loss, int(len(diff_loss)*ratio), largest=False)
         else:
-            mask = torch.randperm(self.E)[:int(self.E)*ratio]
+            newE =self.train_edge_index.size(1)
+            mask = torch.randperm(newE)[:int(newE*ratio)]
         #print('len diff_loss', len(diff_loss))
         #print('len mask', len(mask))
         # mask = (diff_loss < threshold)
@@ -510,7 +512,8 @@ class RandomNodeSampler(torch.utils.data.DataLoader):
             print('len diff_loss', len(diff_loss))
             mask = (diff_loss < threshold)
         else:
-            mask = torch.randperm(self.E)[:int(self.E)*ratio]
+            newE =self.train_edge_index.size(1)
+            mask = torch.randperm(newE)[:int(newE*ratio)]
         # self.train_edge_index = self.train_edge_index[:,mask]
         # edge_index = torch.cat([self.train_edge_index,self.rest_edge_index], dim=1)
         # self.data.edge_index = edge_index

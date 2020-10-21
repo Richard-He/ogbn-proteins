@@ -146,11 +146,15 @@ class Pruner(object):
         self.ratio = ratio
         self.loss = torch.zeros(N)
     
-    def prune(self):
-        diff_loss = torch.abs(self.loss[self.train_edge_index[0]] - self.loss[self.train_edge_index[1]])
-        # print(diff_loss.nonzero().size())
-        # print(int(len(diff_loss)*ratio))
-        _, mask = torch.topk(diff_loss, int(len(diff_loss)*self.ratio), largest=False)
+    def prune(self,naive=False):
+        if naive == False:
+            diff_loss = torch.abs(self.loss[self.train_edge_index[0]] - self.loss[self.train_edge_index[1]])
+            # print(diff_loss.nonzero().size())
+            # print(int(len(diff_loss)*ratio))
+            _, mask = torch.topk(diff_loss, int(len(diff_loss)*self.ratio), largest=False)
+        else:
+            newE =self.train_edge_index.size(1)
+            mask = torch.randperm(newE)[:int(newE*ratio)]
         self.train_e_idx = self.train_e_idx[mask]
         self.train_edge_index = self.train_edge_index[:, mask]
         self.edge_index = self.edge_index[:,torch.cat([self.train_e_idx, self.rest_e_idx])]
@@ -235,7 +239,7 @@ def main():
         logger1.print_statistics(ratio=1)
         logger1.flush()
         for i in range(1, args.times+1):
-            pruner.prune()
+            pruner.prune(naive=args.naive)
             if reset_param == True:
                 model.reset_parameters()
             for epoch in range(1, 1 + args.prune_epoch):

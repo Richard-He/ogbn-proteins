@@ -15,11 +15,11 @@ times = 20
 num_parts = 15
 num_test_parts=10
 best = 0
-start_epochs = 400
-prune_epochs = 600
+start_epochs = 1
+prune_epochs = 1
 prune_set = 'train'
 reset = True
-naive = False
+naive = True
 #logging.basicConfig(filename= f'./log/test_{ratio}_{times}_{num_parts}.log', encoding = 'utf-8',
 #                    level=logging.DEBUG)
 
@@ -197,7 +197,7 @@ for i in range(times):
     recloss = test(prune=True, epoch=0)
     #logger.info(f'ratio: {ratio}')
     del(test_loader)
-    train_loader.prune(recloss, ratio)
+    train_loader.prune(recloss, ratio, naive=naive)
     test_loader = RandomNodeSampler(train_loader.data, num_edges=train_loader.data.edge_index.size(1), num_parts=num_parts, num_workers=5)
     if reset:
         model.reset()
