@@ -359,11 +359,12 @@ for i in range(times):
                                 split_idx=split_idx,
                                sizes=sizes, batch_size=batch_size,
                                shuffle=True, prune=True, prune_set=prune_set, num_workers=num_workers)
-    del(train_loader)
-    train_loader = new_train_loader
+    
     subgraph_loader = NeighborSampler(train_loader.edge_index, node_idx=None, sizes=[-1],
                                   batch_size=1024, shuffle=False,
                                   num_workers=num_workers)
+    del(train_loader)
+    train_loader = new_train_loader
     for epoch in range(prune_epochs):
         # logger.info(f'*******************epochs : {ttepochs}*******************')
         # logger.info('*******************epochs : {}*******************'.format(ttepochs))

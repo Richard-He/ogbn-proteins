@@ -201,9 +201,9 @@ for i in range(times):
     train_loader.prune(recloss, ratio, naive=naive)
     new_train_loader = RandomNodeSampler(train_loader.data, num_parts=num_parts, shuffle=True,
                                   split_idx=splitted_idx, prune=True,prune_set=prune_set, num_workers=num_workers)
+    test_loader = RandomNodeSampler(train_loader.data, num_edges=train_loader.data.edge_index.size(1), num_parts=num_parts, num_workers=num_workers)
     del(train_loader)
     train_loader = new_train_loader
-    test_loader = RandomNodeSampler(train_loader.data, num_edges=train_loader.data.edge_index.size(1), num_parts=num_parts, num_workers=num_workers)
     if reset:
         model.reset()
         tr_best=0
