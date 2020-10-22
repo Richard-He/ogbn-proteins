@@ -10,7 +10,7 @@ from sampler import RandomNodeSampler
 from loguru import logger
 from utils import StyleAdapter
 
-ratio = 0.95
+ratio = 0.9
 times = 20
 num_parts = 15
 num_test_parts=10
@@ -20,10 +20,11 @@ prune_epochs = 600
 prune_set = 'train'
 reset = True
 naive = True
+num_workers = 0
 #logging.basicConfig(filename= f'./log/test_{ratio}_{times}_{num_parts}.log', encoding = 'utf-8',
 #                    level=logging.DEBUG)
 
-log_name = 'log/protein_naive_{}_test_full_reset_{}_{}_{}_{}_{}_{}_{}.log'.format(naive,num_parts,num_test_parts,ratio,start_epochs,prune_epochs,prune_set,reset)
+log_name = 'log/protein_numworker{}_naive_{}_test_full_reset_{}_{}_{}_{}_{}_{}_{}.log'.format(num_workers,naive,num_parts,num_test_parts,ratio,start_epochs,prune_epochs,prune_set,reset)
 logger.add(log_name)
 logger.info('logname: {}'.format(log_name))
 logger.info('params: ratio {ratio}, times {times}, numparts {num_parts}, start epochs {start_epochs}, prune epochs {prune_epochs} ',
@@ -48,8 +49,8 @@ for split in ['train', 'valid', 'test']:
     mask[splitted_idx[split]] = True
     data[f'{split}_mask'] = mask
 train_loader = RandomNodeSampler(data, num_parts=num_parts, shuffle=True,
-                                  split_idx=splitted_idx, prune=True,prune_set=prune_set, num_workers=5)
-test_loader = RandomNodeSampler(data, num_parts=5, num_workers=5)
+                                  split_idx=splitted_idx, prune=True,prune_set=prune_set, num_workers=num_workers)
+test_loader = RandomNodeSampler(data, num_parts=5, num_workers=num_workers)
 
 recordloss = torch.zeros(data.num_nodes)
 
@@ -198,7 +199,11 @@ for i in range(times):
     #logger.info(f'ratio: {ratio}')
     del(test_loader)
     train_loader.prune(recloss, ratio, naive=naive)
-    test_loader = RandomNodeSampler(train_loader.data, num_edges=train_loader.data.edge_index.size(1), num_parts=num_parts, num_workers=5)
+    new_train_loader = RandomNodeSampler(train_loader.data, num_parts=num_parts, shuffle=True,
+                                  split_idx=splitted_idx, prune=True,prune_set=prune_set, num_workers=num_workers)
+    del(train_loader)
+    train_loader = new_train_loader
+    test_loader = RandomNodeSampler(train_loader.data, num_edges=train_loader.data.edge_index.size(1), num_parts=num_parts, num_workers=num_workers)
     if reset:
         model.reset()
         tr_best=0

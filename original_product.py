@@ -6,7 +6,7 @@ from torch.nn import Linear as Lin
 from tqdm import tqdm
 from ogb.nodeproppred import PygNodePropPredDataset, Evaluator
 from sampler import NeighborSampler
-from torch_geometric.nn import GATConv
+from torch_geometric.nn import GATConv, SAGEConv
 from loguru import logger
 import numpy as np
 
@@ -24,8 +24,8 @@ prune_set = 'train'
 reset = True
 model = 'GAT'
 naive = True
-
-log_name = 'log/product_naive_{}_test_{}_{}_{}_{}_{}_{}_{}_{}.log'.format(naive,batch_size,test_size,ratio,start_epochs,prune_epochs,prune_set,reset,model)
+num_workers = 0
+log_name = 'log/product_numworkers_{}_naive_{}_test_{}_{}_{}_{}_{}_{}_{}_{}.log'.format(num_workers,naive,batch_size,test_size,ratio,start_epochs,prune_epochs,prune_set,reset,model)
 logger.add(log_name)
 logger.info('logname: {}'.format(log_name))
 logger.info('params: ratio {ratio}, times {times}, batch size {num_parts}, start epochs {start_epochs}, prune epochs {prune_epochs} ',
@@ -43,10 +43,10 @@ train_idx = split_idx['train']
 train_loader = NeighborSampler(data.edge_index, node_idx=train_idx,
                                 split_idx=split_idx,
                                sizes=sizes, batch_size=batch_size,
-                               shuffle=True, prune=True, prune_set=prune_set, num_workers=12)
+                               shuffle=True, prune=True, prune_set=prune_set, num_workers=num_workers)
 subgraph_loader = NeighborSampler(data.edge_index, node_idx=None, sizes=[-1],
                                   batch_size=1024, shuffle=False,
-                                  num_workers=12)
+                                  num_workers=num_workers)
 recordloss = torch.zeros(data.num_nodes)
 
 class GAT(torch.nn.Module):
@@ -92,7 +92,7 @@ class GAT(torch.nn.Module):
             x = x + self.skips[i](x_target)
             if i != self.num_layers - 1:
                 x = F.elu(x)
-                x = F.dropout(x, p=0.5, training=self.training)
+                x = F.dropout(x, p=0.2, training=self.training)
         return x.log_softmax(dim=-1)
 
     def inference(self, x_all):
@@ -181,25 +181,40 @@ class SAGE(torch.nn.Module):
         for _ in range(num_layers - 2):
             self.convs.append(SAGEConv(hidden_channels, hidden_channels))
         self.convs.append(SAGEConv(hidden_channels, out_channels))
-
+        self.num_layers = num_layers
         self.dropout = dropout
 
     def reset_parameters(self):
         for conv in self.convs:
             conv.reset_parameters()
 
-    def forward(self, x, edge_index):
-        for conv in self.convs[:-1]:
-            x = conv(x, edge_index)
-            x = F.relu(x)
-            x = F.dropout(x, p=self.dropout, training=self.training)
-        x = self.convs[-1](x, edge_index)
-        return torch.log_softmax(x, dim=-1)
+    # def forward(self, x, edge_index):
+    #     for conv in self.convs[:-1]:
+    #         x = conv(x, edge_index)
+    #         x = F.relu(x)
+    #         x = F.dropout(x, p=self.dropout, training=self.training)
+    #     x = self.convs[-1](x, edge_index)
+    #     return torch.log_softmax(x, dim=-1)
+
+    def forward(self, x, adjs):
+    # `train_loader` computes the k-hop neighborhood of a batch of nodes,
+    # and returns, for each layer, a bipartite graph object, holding the
+    # bipartite edges `edge_index`, the index `e_id` of the original edges,
+    # and the size/shape `size` of the bipartite graph.
+    # Target nodes are also included in the source nodes so that one can
+    # easily apply skip-connections or add self-loops.
+        for i, (edge_index, _, size) in enumerate(adjs):
+            x_target = x[:size[1]]  # Target nodes are always placed first.
+            x = self.convs[i]((x, x_target), edge_index)
+            if i != self.num_layers - 1:
+                x = F.relu(x)
+                x = F.dropout(x, p=self.dropout, training=self.training)
+        return x.log_softmax(dim=-1)
 
     def reset_parameters(self):
         for conv in self.convs:
             conv.reset_parameters()
-    
+
     def inference(self, x_all):
 
         for i, conv in enumerate(self.convs):
@@ -340,9 +355,15 @@ for i in range(times):
     #logger.info(f'ratio: {ratio}')
     del(subgraph_loader)
     train_loader.prune(recordloss, ratio, naive=naive)
+    new_train_loader = NeighborSampler(node_idx=train_idx,
+                                split_idx=split_idx,
+                               sizes=sizes, batch_size=batch_size,
+                               shuffle=True, prune=True, prune_set=prune_set, num_workers=num_workers)
+    del(train_loader)
+    train_loader = new_train_loader
     subgraph_loader = NeighborSampler(train_loader.edge_index, node_idx=None, sizes=[-1],
                                   batch_size=1024, shuffle=False,
-                                  num_workers=12)
+                                  num_workers=num_workers)
     for epoch in range(prune_epochs):
         # logger.info(f'*******************epochs : {ttepochs}*******************')
         # logger.info('*******************epochs : {}*******************'.format(ttepochs))
