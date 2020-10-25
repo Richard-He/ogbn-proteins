@@ -490,30 +490,38 @@ class RandomNodeSampler(torch.utils.data.DataLoader):
                 self.train_idx = self.split_idx['train']
             else:
                 self.train_idx = torch.cat([self.split_idx['train'], self.split_idx['valid']])
-            subadj = self.adj.to_dense()[self.train_idx][:,self.train_idx].view(-1)
-            self.train_e_idx = subadj[subadj.nonzero()].squeeze()
-            self.train_edge_index = self.data.edge_index[:, self.train_e_idx] 
+            subadj, _ = self.adj.saint_subgraph(self.train_idx)
+            # subadj = self.adj.to_dense()[self.train_idx][:,self.train_idx].view(-1)
+            _,_,e_idx = subadj.coo()
+            self.train_e_idx = e_idx.squeeze().long()
+            self.train_edge_index = self.edge_index[:, self.train_e_idx] 
             self.rest_e_idx = torch.LongTensor(list(set(range(self.E))  - set(self.train_e_idx.tolist())))
-            # print(f'train_e_idx size :{self.train_edge_index.size(1)}, rest_eid_size {self.rest_e_idx.size(0)}')
-            # logging.info('train_e_idx size :{}, rest_eid_size {}'.format(self.train_edge_index.size(1), self.rest_e_idx.size(0)))
-            #self.rest_edge_index = self.data.edge_index[:, self.rest_e_idx]
+
+        self.times = 0
 
     def __getitem__(self, idx):
         return idx
 
-    def prune(self, loss, ratio=0, naive=False):
+    def prune(self, loss, ratio, naive=False):
         #p_loss = loss[self.train_idx]
+        i = self.times        
+        diff_loss = torch.abs(loss[self.train_edge_index[0]] - loss[self.train_edge_index[1]])
+        # print(diff_loss.nonzero().size())
+        # print(int(len(diff_loss)*ratio))
+        _, mask1 = torch.topk(diff_loss, int(len(diff_loss)*ratio), largest=False)
+       
+        newE =self.train_edge_index.size(1)
+        mask2 = torch.randperm(newE)[:int(newE*ratio)]
+        # torch.save(self.train_edge_index, f'./savept/p_pre_prune_edges_{ratio ** i:.4f}.pt')
+        # print(ratio**i)
+        # torch.save(mask1, f'./savept/p_smart_mask_prune_edges_{ratio ** i:.4f}.pt')
+        # torch.save(mask2, f'./savept/p_naive_mask_prune_edges_{ratio ** i:.4f}.pt')
+        # torch.save(loss, f'./savept/p_loss_{ratio ** i:.4f}.pt')
+        self.times +=1
         if naive == False:
-            diff_loss = torch.abs(loss[self.train_edge_index[0]] - loss[self.train_edge_index[1]])
-            # print(diff_loss.nonzero().size())
-            # print(int(len(diff_loss)*ratio))
-            
-            threshold, _ = torch.kthvalue(diff_loss, int(len(diff_loss)*ratio))
-            print('len diff_loss', len(diff_loss))
-            mask = (diff_loss < threshold)
+            mask = mask1
         else:
-            newE =self.train_edge_index.size(1)
-            mask = torch.randperm(newE)[:int(newE*ratio)]
+            mask = mask2
         # self.train_edge_index = self.train_edge_index[:,mask]
         # edge_index = torch.cat([self.train_edge_index,self.rest_edge_index], dim=1)
         # self.data.edge_index = edge_index

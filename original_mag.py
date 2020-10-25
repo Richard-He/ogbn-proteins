@@ -23,17 +23,17 @@ parser.add_argument('--num_layers', type=int, default=2)
 parser.add_argument('--hidden_channels', type=int, default=64)
 parser.add_argument('--dropout', type=float, default=0.2)
 parser.add_argument('--lr', type=float, default=0.005)
-parser.add_argument('--epochs', type=int, default=100)
+parser.add_argument('--epochs', type=int, default=200)
 parser.add_argument('--runs', type=int, default=1)
 parser.add_argument('--batch_size', type=int, default=60000)
 parser.add_argument('--walk_length', type=int, default=2)
 parser.add_argument('--num_steps', type=int, default=30)
 parser.add_argument('--prune_set', type=str, default='train')
-parser.add_argument('--ratio', type=float, default=0.99)
-parser.add_argument('--times', type=int, default=60)
-parser.add_argument('--prune_epoch', type=int, default=100)
-parser.add_argument('--reset_param',type=bool, default=True)
-parser.add_argument('--naive',type=bool,default=True)
+parser.add_argument('--ratio', type=float, default=0.95)
+parser.add_argument('--times', type=int, default=25)
+parser.add_argument('--prune_epoch', type=int, default=301)
+parser.add_argument('--reset_param',type=bool, default=False)
+parser.add_argument('--naive',type=bool,default=False)
 args = parser.parse_args()
 
 
@@ -338,6 +338,23 @@ def test():
 
     return train_acc, valid_acc, test_acc
 
+ratios = [1]
+train_best = []
+test_best = []
+valid_best = []
+t_b = 0
+te_b = 0
+val_b = 0
+
+def zeros():
+    t_b = 0
+    te_b =0
+    val_b =0
+
+def appen():
+    train_best.append(t_b)
+    valid_best.append(val_b)
+    test_best.append(te_b)
 
 #test()  # Test if inference on GPU succeeds.
 for run in range(args.runs):
@@ -350,10 +367,17 @@ for run in range(args.runs):
         logger1.add_result(run, result)
         train_acc, valid_acc, test_acc = result
         logger.info(f'Run: {run + 1:02d}, Epoch: {epoch:02d}, Loss: {loss:.4f}, Train: {100 * train_acc:.2f}%, Valid: {100 * valid_acc:.2f}%, Test: {100 * test_acc:.2f}%')
+        t_b = np.max([train_acc, t_b])
+        te_b = np.max([test_acc, te_b])
+        val_b = np.max([valid_acc, val_b])
+    appen()
+
     logger1.print_statistics(ratio=1)
     logger1.flush()
+    
     for i in range(1, args.times+1):
         train_loader.prune(rec_loss, args.ratio, naive=args.naive)
+        zeros()
         if args.reset_param == True:
             model.reset_parameters()
 
@@ -363,7 +387,11 @@ for run in range(args.runs):
             logger1.add_result(run, result)
             train_acc, valid_acc, test_acc = result
             logger.info(f'Run: {run + 1:02d}, Epoch: {epoch:02d}, Loss: {loss:.4f}, Train: {100 * train_acc:.2f}%, Valid: {100 * valid_acc:.2f}% Test: {100 * test_acc:.2f}%')
-
+            t_b = np.max([train_acc, t_b])
+            te_b = np.max([test_acc, te_b])
+            val_b = np.max([valid_acc, val_b])
+        appen()
+        ratios.append(args.ratio ** i)
         logger1.print_statistics(ratio=args.ratio ** i)
         logger1.flush()
-    
+    logger.info(f'Final train : {str(train_best)}, Final valid : {str(valid_best)}, Final test : {str(test_best)}, ratios : {str(ratios)}')

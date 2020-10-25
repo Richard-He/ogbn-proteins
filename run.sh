@@ -1,1 +1,1 @@
-CUDA_VISIBLE_DEVICES=3 python original_product.py
+CUDA_VISIBLE_DEVICES=0 python original_mag.py

@@ -145,16 +145,27 @@ class Pruner(object):
         self.rest_e_idx = torch.LongTensor(list(set(range(self.E))  - set(self.train_e_idx.tolist())))
         self.ratio = ratio
         self.loss = torch.zeros(N)
+        self.times = 0
     
     def prune(self,naive=False):
+        i = self.times        
+        diff_loss = torch.abs(self.loss[self.train_edge_index[0]] - self.loss[self.train_edge_index[1]])
+        # print(diff_loss.nonzero().size())
+        # print(int(len(diff_loss)*ratio))
+        _, mask1 = torch.topk(diff_loss, int(len(diff_loss)*self.ratio), largest=False)
+       
+        newE =self.train_edge_index.size(1)
+        mask2 = torch.randperm(newE)[:int(newE*self.ratio)]
+        torch.save(self.train_edge_index, f'./savept/pre_prune_edges_{self.ratio ** i:.4f}.pt')
+
+        torch.save(mask1, f'./savept/smart_mask_prune_edges_{self.ratio ** i:.4f}.pt')
+        torch.save(mask2, f'./savept/naive_mask_prune_edges_{self.ratio ** i:.4f}.pt')
+        torch.save(self.loss, f'./savept/loss_{self.ratio ** i:.4f}.pt')
+        self.times +=1
         if naive == False:
-            diff_loss = torch.abs(self.loss[self.train_edge_index[0]] - self.loss[self.train_edge_index[1]])
-            # print(diff_loss.nonzero().size())
-            # print(int(len(diff_loss)*ratio))
-            _, mask = torch.topk(diff_loss, int(len(diff_loss)*self.ratio), largest=False)
+            mask = mask1
         else:
-            newE =self.train_edge_index.size(1)
-            mask = torch.randperm(newE)[:int(newE*ratio)]
+            mask = mask2
         self.train_e_idx = self.train_e_idx[mask]
         self.train_edge_index = self.train_edge_index[:, mask]
         self.edge_index = self.edge_index[:,torch.cat([self.train_e_idx, self.rest_e_idx])]
@@ -176,12 +187,12 @@ def main():
     parser.add_argument('--hidden_channels', type=int, default=256)
     parser.add_argument('--dropout', type=float, default=0.5)
     parser.add_argument('--lr', type=float, default=0.01)
-    parser.add_argument('--epochs', type=int, default=500)
+    parser.add_argument('--epochs', type=int, default=201)
     parser.add_argument('--runs', type=int, default=1)
-    parser.add_argument('--prune_set', type=str, default='valid')
-    parser.add_argument('--ratio', type=float, default=0.)
+    parser.add_argument('--prune_set', type=str, default='train')
+    parser.add_argument('--ratio', type=float, default=0.95)
     parser.add_argument('--times', type=int, default=20)
-    parser.add_argument('--prune_epoch', type=int, default=300)
+    parser.add_argument('--prune_epoch', type=int, default=301)
     parser.add_argument('--reset_param',type=bool, default=False)
     parser.add_argument('--naive', type=bool, default=False)
     args = parser.parse_args()
@@ -240,7 +251,7 @@ def main():
         logger1.flush()
         for i in range(1, args.times+1):
             pruner.prune(naive=args.naive)
-            if reset_param == True:
+            if args.reset_param == True:
                 model.reset_parameters()
             for epoch in range(1, 1 + args.prune_epoch):
                 loss = train(model, data, train_idx, optimizer,pruner=pruner)
