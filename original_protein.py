@@ -5,26 +5,29 @@ from torch.nn import Linear, LayerNorm, ReLU
 from torch_scatter import scatter
 from ogb.nodeproppred import PygNodePropPredDataset, Evaluator
 import numpy as np
-from torch_geometric.nn import GENConv, DeepGCNLayer
+from torch_geometric.nn import GENConv, DeepGCNLayer, SAGEConv, GCNConv
 from sampler import RandomNodeSampler
 from loguru import logger
 from utils import StyleAdapter
+from torch_sparse import SparseTensor
 
-ratio = 0.9
+
+ratio = 0.95
 times = 20
 num_parts = 15
 num_test_parts=10
 best = 0
-start_epochs = 100
-prune_epochs = 100
+start_epochs = 200
+prune_epochs = 200
 prune_set = 'train'
-reset = True
-naive = True
+reset = False
+naive = False
 num_workers = 5
+model_n = 'sage'
 #logging.basicConfig(filename= f'./log/test_{ratio}_{times}_{num_parts}.log', encoding = 'utf-8',
 #                    level=logging.DEBUG)
 
-log_name = 'log/protein_numworker{}_naive_{}_test_full_reset_{}_{}_{}_{}_{}_{}_{}.log'.format(num_workers,naive,num_parts,num_test_parts,ratio,start_epochs,prune_epochs,prune_set,reset)
+log_name = 'log/protein_numworker{}_model_{}_naive_{}_test_full_reset_{}_{}_{}_{}_{}_{}_{}.log'.format(num_workers,model_n,naive,num_parts,num_test_parts,ratio,start_epochs,prune_epochs,prune_set,reset)
 logger.add(log_name)
 logger.info('logname: {}'.format(log_name))
 logger.info('params: ratio {ratio}, times {times}, numparts {num_parts}, start epochs {start_epochs}, prune epochs {prune_epochs} ',
@@ -53,6 +56,61 @@ train_loader = RandomNodeSampler(data, num_parts=num_parts, shuffle=True,
 test_loader = RandomNodeSampler(data, num_parts=5, num_workers=num_workers)
 
 recordloss = torch.zeros(data.num_nodes)
+
+class GCN(torch.nn.Module):
+    def __init__(self, in_channels, hidden_channels, out_channels, num_layers,
+                 dropout):
+        super(GCN, self).__init__()
+
+        self.convs = torch.nn.ModuleList()
+        self.convs.append(
+            GCNConv(in_channels, hidden_channels))
+        for _ in range(num_layers - 2):
+            self.convs.append(
+                GCNConv(hidden_channels, hidden_channels))
+        self.convs.append(
+            GCNConv(hidden_channels, out_channels))
+
+        self.dropout = dropout
+
+    def reset(self):
+        for conv in self.convs:
+            conv.reset_parameters()
+
+    def forward(self, x, edge_index, edge_attr):
+        adj_t = edge_index
+        for conv in self.convs[:-1]:
+            x = conv(x, adj_t)
+            x = F.relu(x)
+            x = F.dropout(x, p=self.dropout, training=self.training)
+        x = self.convs[-1](x, adj_t)
+        return x
+
+
+class SAGE(torch.nn.Module):
+    def __init__(self, in_channels, hidden_channels, out_channels, num_layers,
+                 dropout):
+        super(SAGE, self).__init__()
+
+        self.convs = torch.nn.ModuleList()
+        self.convs.append(SAGEConv(in_channels, hidden_channels))
+        for _ in range(num_layers - 2):
+            self.convs.append(SAGEConv(hidden_channels, hidden_channels))
+        self.convs.append(SAGEConv(hidden_channels, out_channels))
+
+        self.dropout = dropout
+
+    def reset(self):
+        for conv in self.convs:
+            conv.reset_parameters()
+
+    def forward(self, x, adj_t, edge_attr):
+        for conv in self.convs[:-1]:
+            x = conv(x, adj_t)
+            x = F.relu(x)
+            x = F.dropout(x, p=self.dropout, training=self.training)
+        x = self.convs[-1](x, adj_t)
+        return x
 
 class DeeperGCN(torch.nn.Module):
     def __init__(self, hidden_channels, num_layers):
@@ -96,7 +154,13 @@ class DeeperGCN(torch.nn.Module):
         self.edge_encoder.reset_parameters()
 
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-model = DeeperGCN(hidden_channels=64, num_layers=28).to(device)
+if model_n == 'deepgcn':
+    model = DeeperGCN(hidden_channels=64, num_layers=28).to(device)
+elif model_n == 'gcn':
+    model = GCN(data.num_features,256,112,num_layers=3, dropout=0.2).to(device)
+elif model_n == 'sage':
+    model = SAGE(data.num_features,256,112,num_layers=3, dropout=0.2).to(device)
+
 optimizer = torch.optim.Adam(model.parameters(), lr=0.01)
 criterion = torch.nn.BCEWithLogitsLoss(reduction='none')
 evaluator = Evaluator('ogbn-proteins')
