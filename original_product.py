@@ -16,14 +16,14 @@ test_size = 1024
 ratio = 0.95
 times = 15
 best = 0
-start_epochs = 150
+start_epochs = 1
 #250
-prune_epochs = 200
+prune_epochs = 1
 #200
 prune_set = 'train'
-reset = True
-model = 'GAT'
-naive = True
+reset = False
+model = 'SAGE'
+naive = False
 num_workers = 0
 log_name = 'log/product_numworkers_{}_naive_{}_test_{}_{}_{}_{}_{}_{}_{}_{}.log'.format(num_workers,naive,batch_size,test_size,ratio,start_epochs,prune_epochs,prune_set,reset,model)
 logger.add(log_name)
@@ -34,7 +34,7 @@ logger.info('params: ratio {ratio}, times {times}, batch size {num_parts}, start
                                                                         num_parts = batch_size,
                                                                         start_epochs = start_epochs,
                                                                         prune_epochs = prune_epochs)
-dataset = PygNodePropPredDataset('ogbn-products', root='/mnt/ogbdata')
+dataset = PygNodePropPredDataset('ogbn-products', root='./data/')
 split_idx = dataset.get_idx_split()
 evaluator = Evaluator(name='ogbn-products')
 data = dataset[0]
@@ -355,16 +355,9 @@ for i in range(times):
     #logger.info(f'ratio: {ratio}')
     del(subgraph_loader)
     train_loader.prune(recordloss, ratio, naive=naive)
-    new_train_loader = NeighborSampler(node_idx=train_idx,
-                                split_idx=split_idx,
-                               sizes=sizes, batch_size=batch_size,
-                               shuffle=True, prune=True, prune_set=prune_set, num_workers=num_workers)
-    
     subgraph_loader = NeighborSampler(train_loader.edge_index, node_idx=None, sizes=[-1],
                                   batch_size=1024, shuffle=False,
                                   num_workers=num_workers)
-    del(train_loader)
-    train_loader = new_train_loader
     for epoch in range(prune_epochs):
         # logger.info(f'*******************epochs : {ttepochs}*******************')
         # logger.info('*******************epochs : {}*******************'.format(ttepochs))
