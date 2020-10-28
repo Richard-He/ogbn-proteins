@@ -508,7 +508,7 @@ class RandomNodeSampler(torch.utils.data.DataLoader):
         diff_loss = torch.abs(loss[self.train_edge_index[0]] - loss[self.train_edge_index[1]])
         # print(diff_loss.nonzero().size())
         # print(int(len(diff_loss)*ratio))
-        _, mask1 = torch.topk(diff_loss, int(len(diff_loss)*ratio), largest=False)
+        _, mask1 = torch.topk(diff_loss, int(len(diff_loss)*ratio), largest=True)
        
         newE =self.train_edge_index.size(1)
         mask2 = torch.randperm(newE)[:int(newE*ratio)]

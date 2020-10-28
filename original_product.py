@@ -16,15 +16,15 @@ test_size = 1024
 ratio = 0.95
 times = 15
 best = 0
-start_epochs = 1
+start_epochs = 100
 #250
-prune_epochs = 1
+prune_epochs = 100
 #200
 prune_set = 'train'
 reset = False
-model = 'SAGE'
-naive = False
-num_workers = 0
+model = 'GAT'
+naive = True
+num_workers = 6
 log_name = 'log/product_numworkers_{}_naive_{}_test_{}_{}_{}_{}_{}_{}_{}_{}.log'.format(num_workers,naive,batch_size,test_size,ratio,start_epochs,prune_epochs,prune_set,reset,model)
 logger.add(log_name)
 logger.info('logname: {}'.format(log_name))
@@ -358,9 +358,13 @@ for i in range(times):
     subgraph_loader = NeighborSampler(train_loader.edge_index, node_idx=None, sizes=[-1],
                                   batch_size=1024, shuffle=False,
                                   num_workers=num_workers)
+    tr_best=0
+    time_best=0
+    val_best=0
     for epoch in range(prune_epochs):
         # logger.info(f'*******************epochs : {ttepochs}*******************')
         # logger.info('*******************epochs : {}*******************'.format(ttepochs))
+        
         if reset == True:
             model.reset_parameters()
         loss, acc = train(epoch)
@@ -388,6 +392,7 @@ for i in range(times):
     best_auc_roc.append(time_best)
     best_train_auc.append(tr_best)
     best_val_auc.append(val_best)
+    logger.info(f'best_train {tr_best:.4f}, best_val {val_best:.4f}, best_test {time_best:.4f}')
 global_best_id = np.argmax(best_auc_roc)
 global_best_id_tr = np.argmax(best_train_auc)
 global_best_id_val = np.argmax(best_val_auc)
