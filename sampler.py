@@ -359,7 +359,10 @@ class NeighborSampler(torch.utils.data.DataLoader):
             _,_,e_idx = subadj.coo()
             self.train_e_idx = e_idx.squeeze().long()
             self.train_edge_index = self.edge_index[:, self.train_e_idx] 
-            self.rest_e_idx = torch.LongTensor(list(set(range(self.E))  - set(self.train_e_idx.tolist())))
+            self.rest_idx = torch.cat([self.split_idx['valid'], self.split_idx['test']])
+            subadj2, _ = self.adj.saint_subgraph(self.rest_idx)
+            _,_,rest_e_idx = subadj2.coo()
+            self.rest_e_idx = rest_e_idx.squeeze().long()
 
     # def prune_naive(self, ratio=0):
     #     mask = torch.randperm(self.E)
@@ -508,7 +511,7 @@ class RandomNodeSampler(torch.utils.data.DataLoader):
         diff_loss = torch.abs(loss[self.train_edge_index[0]] - loss[self.train_edge_index[1]])
         # print(diff_loss.nonzero().size())
         # print(int(len(diff_loss)*ratio))
-        _, mask1 = torch.topk(diff_loss, int(len(diff_loss)*ratio), largest=True)
+        _, mask1 = torch.topk(diff_loss, int(len(diff_loss)*ratio), largest=False)
        
         newE =self.train_edge_index.size(1)
         mask2 = torch.randperm(newE)[:int(newE*ratio)]

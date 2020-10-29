@@ -13,18 +13,19 @@ import numpy as np
 sizes=[10] * 3
 batch_size = 512
 test_size = 1024
-ratio = 0.95
+ratio = 0.995
 times = 15
 best = 0
-start_epochs = 100
+start_epochs = 120
 #250
 prune_epochs = 100
 #200
 prune_set = 'train'
+naive = True
 reset = False
 model = 'GAT'
-naive = True
-num_workers = 6
+
+num_workers = 0
 log_name = 'log/product_numworkers_{}_naive_{}_test_{}_{}_{}_{}_{}_{}_{}_{}.log'.format(num_workers,naive,batch_size,test_size,ratio,start_epochs,prune_epochs,prune_set,reset,model)
 logger.add(log_name)
 logger.info('logname: {}'.format(log_name))
@@ -92,7 +93,7 @@ class GAT(torch.nn.Module):
             x = x + self.skips[i](x_target)
             if i != self.num_layers - 1:
                 x = F.elu(x)
-                x = F.dropout(x, p=0.2, training=self.training)
+                x = F.dropout(x, p=0.5, training=self.training)
         return x.log_softmax(dim=-1)
 
     def inference(self, x_all):
@@ -127,7 +128,7 @@ class GAT(torch.nn.Module):
 
 class GCN(torch.nn.Module):
     def __init__(self, in_channels, hidden_channels, out_channels, num_layers,
-                 dropout=0.2):
+                 dropout=0.5):
         super(GCN, self).__init__()
 
         self.convs = torch.nn.ModuleList()
@@ -173,7 +174,7 @@ class GCN(torch.nn.Module):
 
 class SAGE(torch.nn.Module):
     def __init__(self, in_channels, hidden_channels, out_channels, num_layers,
-                 dropout=0.2):
+                 dropout=0.5):
         super(SAGE, self).__init__()
 
         self.convs = torch.nn.ModuleList()
