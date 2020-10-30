@@ -12,18 +12,18 @@ from utils import StyleAdapter
 from torch_sparse import SparseTensor
 
 
-ratio = 0.95
+ratio = 0.998
 times = 20
-num_parts = 15
-num_test_parts=10
+num_parts = 40
+num_test_parts=5
 best = 0
 start_epochs = 200
-prune_epochs = 200
+prune_epochs = 250
 prune_set = 'train'
-reset = False
+reset = True
 naive = False
-num_workers = 5
-model_n = 'sage'
+num_workers = 0
+model_n = 'deepgcn'
 #logging.basicConfig(filename= f'./log/test_{ratio}_{times}_{num_parts}.log', encoding = 'utf-8',
 #                    level=logging.DEBUG)
 
@@ -36,7 +36,7 @@ logger.info('params: ratio {ratio}, times {times}, numparts {num_parts}, start e
                                                                         num_parts = num_parts,
                                                                         start_epochs = start_epochs,
                                                                         prune_epochs = prune_epochs)
-dataset = PygNodePropPredDataset('ogbn-proteins', root='/mnt/ogbdata/')
+dataset = PygNodePropPredDataset('ogbn-proteins', root='./data/')
 splitted_idx = dataset.get_idx_split()
 data = dataset[0]
 data.node_species = None
@@ -157,9 +157,9 @@ device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 if model_n == 'deepgcn':
     model = DeeperGCN(hidden_channels=64, num_layers=28).to(device)
 elif model_n == 'gcn':
-    model = GCN(data.num_features,256,112,num_layers=3, dropout=0.2).to(device)
+    model = GCN(data.num_features,256,112,num_layers=3, dropout=0.5).to(device)
 elif model_n == 'sage':
-    model = SAGE(data.num_features,256,112,num_layers=3, dropout=0.2).to(device)
+    model = SAGE(data.num_features,256,112,num_layers=3, dropout=0.5).to(device)
 
 optimizer = torch.optim.Adam(model.parameters(), lr=0.01)
 criterion = torch.nn.BCEWithLogitsLoss(reduction='none')
@@ -266,10 +266,11 @@ for i in range(times):
     test_loader = RandomNodeSampler(train_loader.data, num_edges=train_loader.data.edge_index.size(1), num_parts=num_parts, num_workers=num_workers)
     if reset:
         model.reset()
-        tr_best=0
-        val_best=0
-        time_best=0
         print('reset_done')
+    tr_best=0
+    val_best=0
+    time_best=0
+        
     for epoch in range(prune_epochs):
         # print(f'*******************epochs : {ttepochs}*******************')
         # logger.info('*******************epochs : {}*******************'.format(ttepochs))

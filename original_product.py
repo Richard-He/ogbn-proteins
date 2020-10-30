@@ -13,15 +13,15 @@ import numpy as np
 sizes=[10] * 3
 batch_size = 512
 test_size = 1024
-ratio = 0.995
+ratio = 0.95
 times = 15
 best = 0
-start_epochs = 120
+start_epochs = 100
 #250
 prune_epochs = 100
 #200
 prune_set = 'train'
-naive = True
+naive = False
 reset = False
 model = 'GAT'
 
@@ -362,12 +362,14 @@ for i in range(times):
     tr_best=0
     time_best=0
     val_best=0
+    if reset == True:
+        model.reset_parameters()
+        print('reset done')
     for epoch in range(prune_epochs):
         # logger.info(f'*******************epochs : {ttepochs}*******************')
         # logger.info('*******************epochs : {}*******************'.format(ttepochs))
         
-        if reset == True:
-            model.reset_parameters()
+       
         loss, acc = train(epoch)
         logger.info('Total Epochs: {}, Epochs: {}, Loss: {:.4f}, Approx. Train:{}'.format(ttepochs+1, epoch+1, loss, acc))
         if epoch % 10 == 0 and epoch != 0:
