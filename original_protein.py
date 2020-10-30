@@ -12,18 +12,40 @@ from utils import StyleAdapter
 from torch_sparse import SparseTensor
 
 
-ratio = 0.998
-times = 20
-num_parts = 40
-num_test_parts=5
+parser = argparse.ArgumentParser(description='OGBN-Products (GAT)')
+parser.add_argument('--lr', type=float, default=0.01)
+
+parser.add_argument('--model_n', type=str, default='deepgcn')
+parser.add_argument('--naive', type=float, default=True)
+parser.add_argument('--reset', type=float, default=True)
+
+parser.add_argument('--num_test_parts',type=int, default=5)
+parser.add_argument('--num_parts',type=int, default=40)
+parser.add_argument('--times',type=int, default=20)
+
+parser.add_argument('--prune_epochs', type=int, default=250)
+parser.add_argument('--start_epochs', type=int, default=200)
+
+parser.add_argument('--num_workers', type=int, default=5)
+parser.add_argument('--ratio', type=float, default=0.998)
+parser.add_argument('--prune_set',type=str, default='train')
+parser.add_argument('--dropout',type=float, default=0.5)
+parser.add_argument('--data_dir',type=str,default='./data/')
+
+args = parser.parse_args()
+
+ratio = args.ratio
+times = args.times
+num_parts = args.num_parts
+num_test_parts=args.num_test_parts
 best = 0
-start_epochs = 200
-prune_epochs = 250
-prune_set = 'train'
-reset = True
-naive = False
-num_workers = 0
-model_n = 'deepgcn'
+start_epochs = args.start_epochs
+prune_epochs = args.prune_epochs
+prune_set = args.prune_set
+reset = args.reset
+naive = args.naive
+num_workers = args.num_workers
+model_n = args.model_n
 #logging.basicConfig(filename= f'./log/test_{ratio}_{times}_{num_parts}.log', encoding = 'utf-8',
 #                    level=logging.DEBUG)
 
@@ -36,7 +58,7 @@ logger.info('params: ratio {ratio}, times {times}, numparts {num_parts}, start e
                                                                         num_parts = num_parts,
                                                                         start_epochs = start_epochs,
                                                                         prune_epochs = prune_epochs)
-dataset = PygNodePropPredDataset('ogbn-proteins', root='./data/')
+dataset = PygNodePropPredDataset('ogbn-proteins', root=args.data_dir)
 splitted_idx = dataset.get_idx_split()
 data = dataset[0]
 data.node_species = None
@@ -157,11 +179,11 @@ device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 if model_n == 'deepgcn':
     model = DeeperGCN(hidden_channels=64, num_layers=28).to(device)
 elif model_n == 'gcn':
-    model = GCN(data.num_features,256,112,num_layers=3, dropout=0.5).to(device)
+    model = GCN(data.num_features,256,112,num_layers=3, dropout=args.dropout).to(device)
 elif model_n == 'sage':
-    model = SAGE(data.num_features,256,112,num_layers=3, dropout=0.5).to(device)
+    model = SAGE(data.num_features,256,112,num_layers=3, dropout=args.dropout).to(device)
 
-optimizer = torch.optim.Adam(model.parameters(), lr=0.01)
+optimizer = torch.optim.Adam(model.parameters(), lr=args.lr)
 criterion = torch.nn.BCEWithLogitsLoss(reduction='none')
 evaluator = Evaluator('ogbn-proteins')
 

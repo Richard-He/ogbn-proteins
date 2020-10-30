@@ -505,26 +505,23 @@ class RandomNodeSampler(torch.utils.data.DataLoader):
     def __getitem__(self, idx):
         return idx
 
-    def prune(self, loss, ratio, naive=False):
+    def prune(self, loss, ratio, naive=False,s_ave=False):
         #p_loss = loss[self.train_idx]
-        i = self.times        
-        diff_loss = torch.abs(loss[self.train_edge_index[0]] - loss[self.train_edge_index[1]])
-        # print(diff_loss.nonzero().size())
-        # print(int(len(diff_loss)*ratio))
-        _, mask1 = torch.topk(diff_loss, int(len(diff_loss)*ratio), largest=False)
-       
-        newE =self.train_edge_index.size(1)
-        mask2 = torch.randperm(newE)[:int(newE*ratio)]
-        # torch.save(self.train_edge_index, f'./savept/p_pre_prune_edges_{ratio ** i:.4f}.pt')
-        # print(ratio**i)
-        # torch.save(mask1, f'./savept/p_smart_mask_prune_edges_{ratio ** i:.4f}.pt')
-        # torch.save(mask2, f'./savept/p_naive_mask_prune_edges_{ratio ** i:.4f}.pt')
-        # torch.save(loss, f'./savept/p_loss_{ratio ** i:.4f}.pt')
-        self.times +=1
-        if naive == False:
-            mask = mask1
+        i = self.times
+        if naive== False:        
+            diff_loss = torch.abs(loss[self.train_edge_index[0]] - loss[self.train_edge_index[1]])
+            # print(diff_loss.nonzero().size())
+            # print(int(len(diff_loss)*ratio))
+            _, mask = torch.topk(diff_loss, int(len(diff_loss)*ratio), largest=False)
         else:
-            mask = mask2
+            newE =self.train_edge_index.size(1)
+            mask = torch.randperm(newE)[:int(newE*ratio)]
+        if s_ave==True:
+            torch.save(self.train_edge_index, f'./savept/p_pre_prune_edges_{ratio ** i:.4f}.pt')
+            print(ratio**i)
+            # torch.save(mask1, f'./savept/p_smart_mask_prune_edges_{ratio ** i:.4f}.pt')
+            # torch.save(mask2, f'./savept/p_naive_mask_prune_edges_{ratio ** i:.4f}.pt')
+            torch.save(loss, f'./savept/p_loss_{ratio ** i:.4f}.pt')
         # self.train_edge_index = self.train_edge_index[:,mask]
         # edge_index = torch.cat([self.train_edge_index,self.rest_edge_index], dim=1)
         # self.data.edge_index = edge_index

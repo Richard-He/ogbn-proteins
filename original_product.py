@@ -10,20 +10,44 @@ from torch_geometric.nn import GATConv, SAGEConv
 from loguru import logger
 import numpy as np
 
+parser = argparse.ArgumentParser(description='OGBN-Products (GAT)')
+parser.add_argument('--lr', type=float, default=0.01)
+
+parser.add_argument('--model', type=str, default='GAT')
+parser.add_argument('--naive', type=float, default=True)
+parser.add_argument('--reset', type=float, default=True)
+
+parser.add_argument('--num_test_parts',type=int, default=5)
+parser.add_argument('--num_parts',type=int, default=40)
+parser.add_argument('--times',type=int, default=15)
+
+parser.add_argument('--prune_epochs', type=int, default=100)
+parser.add_argument('--start_epochs', type=int, default=100)
+
+parser.add_argument('--num_workers', type=int, default=5)
+parser.add_argument('--ratio', type=float, default=0.95)
+parser.add_argument('--prune_set',type=str, default='train')
+parser.add_argument('--dropout',type=float, default=0.5)
+parser.add_argument('--batch_size',type=int, default=512)
+parser.add_argument('--test_size', type=int,default=1024)
+parser.add_argument('--data_dir',type=str,default='./data/')
+
+args = parser.parse_args()
+
 sizes=[10] * 3
-batch_size = 512
-test_size = 1024
-ratio = 0.95
-times = 15
+batch_size = args.batch_size
+test_size = args.test_size
+ratio = args.ratio
+times = args.times
 best = 0
-start_epochs = 100
+start_epochs = args.start_epochs
 #250
-prune_epochs = 100
+prune_epochs = args.prune_epochs
 #200
-prune_set = 'train'
-naive = False
-reset = False
-model = 'GAT'
+prune_set = args.prune_set
+naive = args.naive
+reset = args.reset
+model = args.model
 
 num_workers = 0
 log_name = 'log/product_numworkers_{}_naive_{}_test_{}_{}_{}_{}_{}_{}_{}_{}.log'.format(num_workers,naive,batch_size,test_size,ratio,start_epochs,prune_epochs,prune_set,reset,model)
@@ -35,7 +59,7 @@ logger.info('params: ratio {ratio}, times {times}, batch size {num_parts}, start
                                                                         num_parts = batch_size,
                                                                         start_epochs = start_epochs,
                                                                         prune_epochs = prune_epochs)
-dataset = PygNodePropPredDataset('ogbn-products', root='./data/')
+dataset = PygNodePropPredDataset('ogbn-products', root=args.data_dir)
 split_idx = dataset.get_idx_split()
 evaluator = Evaluator(name='ogbn-products')
 data = dataset[0]

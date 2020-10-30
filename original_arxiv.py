@@ -195,6 +195,7 @@ def main():
     parser.add_argument('--prune_epoch', type=int, default=301)
     parser.add_argument('--reset_param',type=bool, default=False)
     parser.add_argument('--naive', type=bool, default=False)
+    parser.add_argument('--data_dir',type=str,default='./data/')
     args = parser.parse_args()
     
     log_name = f'log/arxivtest_{args.prune_set}_{args.ratio}_{args.epochs}_{args.prune_epoch}_{args.times}.log'
@@ -206,7 +207,7 @@ def main():
     # device = torch.device(device)
 
     device = 'cuda' if torch.cuda.is_available() else 'cpu'
-    dataset = PygNodePropPredDataset(name='ogbn-arxiv',root='/mnt/ogbdata',
+    dataset = PygNodePropPredDataset(name='ogbn-arxiv',root=args.data_dir,
                                      transform=T.ToSparseTensor())
 
     data = dataset[0]

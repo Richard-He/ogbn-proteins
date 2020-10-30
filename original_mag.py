@@ -34,6 +34,7 @@ parser.add_argument('--times', type=int, default=0)
 parser.add_argument('--prune_epoch', type=int, default=301)
 parser.add_argument('--reset_param',type=bool, default=False)
 parser.add_argument('--naive',type=bool,default=False)
+parser.add_argument('--data_dir',type=str,default='./data/')
 args = parser.parse_args()
 
 
@@ -43,7 +44,7 @@ logger.add(log_name)
 logger.info('logname: {}'.format(log_name))
 logger.info(args)
 
-dataset = PygNodePropPredDataset(name='ogbn-mag', root='./data/')
+dataset = PygNodePropPredDataset(name='ogbn-mag', root=args.data_dir)
 data = dataset[0]
 split_idx = dataset.get_idx_split()
 evaluator = Evaluator(name='ogbn-mag')
