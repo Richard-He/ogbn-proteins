@@ -9,13 +9,15 @@ from sampler import NeighborSampler
 from torch_geometric.nn import GATConv, SAGEConv
 from loguru import logger
 import numpy as np
+import argparse
+
 
 parser = argparse.ArgumentParser(description='OGBN-Products (GAT)')
 parser.add_argument('--lr', type=float, default=0.01)
 
 parser.add_argument('--model', type=str, default='GAT')
-parser.add_argument('--naive', type=float, default=True)
-parser.add_argument('--reset', type=float, default=True)
+parser.add_argument('--naive', type=bool, default=True)
+parser.add_argument('--reset', type=bool, default=True)
 
 parser.add_argument('--num_test_parts',type=int, default=5)
 parser.add_argument('--num_parts',type=int, default=40)

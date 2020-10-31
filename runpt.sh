@@ -1,10 +1,10 @@
 CUDA_VISIBLE_DEVICES=1 python original_protein.py \
 --ratio=0.998 \
---start_epochs=200 \
+--start_epochs=50 \
 --prune_epochs=250 \
 --prune_set=train  \
+--times=1 \
 --naive=True  \
 --reset=True  \
 --model=deepgcn  \
---data_dir=./data/ \
-/
+--data_dir=./data/ 

@@ -10,14 +10,16 @@ from sampler import RandomNodeSampler
 from loguru import logger
 from utils import StyleAdapter
 from torch_sparse import SparseTensor
+import argparse
+
 
 
 parser = argparse.ArgumentParser(description='OGBN-Products (GAT)')
 parser.add_argument('--lr', type=float, default=0.01)
 
 parser.add_argument('--model_n', type=str, default='deepgcn')
-parser.add_argument('--naive', type=float, default=True)
-parser.add_argument('--reset', type=float, default=True)
+parser.add_argument('--naive', type=bool, default=True)
+parser.add_argument('--reset', type=bool, default=True)
 
 parser.add_argument('--num_test_parts',type=int, default=5)
 parser.add_argument('--num_parts',type=int, default=40)
@@ -284,7 +286,7 @@ for i in range(times):
     recloss = test(prune=True, epoch=0)
     #logger.info(f'ratio: {ratio}')
     del(test_loader)
-    train_loader.prune(recloss, ratio, naive=naive)
+    train_loader.prune(recloss, ratio, naive=naive, savept=True)
     test_loader = RandomNodeSampler(train_loader.data, num_edges=train_loader.data.edge_index.size(1), num_parts=num_parts, num_workers=num_workers)
     if reset:
         model.reset()
