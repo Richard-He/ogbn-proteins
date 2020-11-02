@@ -33,13 +33,14 @@ parser.add_argument('--ratio', type=float, default=0.95)
 parser.add_argument('--times', type=int, default=0)
 parser.add_argument('--prune_epoch', type=int, default=301)
 parser.add_argument('--reset_param',type=bool, default=False)
-parser.add_argument('--naive',type=bool,default=False)
+parser.add_argument('--method',type=str,default='ada')
 parser.add_argument('--data_dir',type=str,default='./data/')
+parser.add_argument
 args = parser.parse_args()
 
 
 
-log_name = f'log/mag_naive_{args.naive}_test_prune{args.prune_set}_ratio{args.ratio}_batch_size{args.batch_size}_epochs{args.epochs}_pruneepoch{args.prune_epoch}_times{args.times}_reset{args.reset_param}.log'
+log_name = f'log/mag_{args.method}_{args.prune_set}_ratio{args.ratio}_batch_size{args.batch_size}_epochs{args.epochs}_pruneepoch{args.prune_epoch}_times{args.times}_reset{args.reset_param}.log'
 logger.add(log_name)
 logger.info('logname: {}'.format(log_name))
 logger.info(args)
@@ -377,7 +378,7 @@ for run in range(args.runs):
     logger1.flush()
     
     for i in range(1, args.times+1):
-        train_loader.prune(rec_loss, args.ratio, naive=args.naive)
+        train_loader.prune(rec_loss, args.ratio, method=args.method)
         zeros()
         if args.reset_param == True:
             model.reset_parameters()

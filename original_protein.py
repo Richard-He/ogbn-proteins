@@ -15,13 +15,13 @@ import argparse
 
 
 parser = argparse.ArgumentParser(description='OGBN-Products (GAT)')
-parser.add_argument('--lr', type=float, default=0.01)
+parser.add_argument('--lr', type=float, default=0.001)
 
 parser.add_argument('--model_n', type=str, default='deepgcn')
-parser.add_argument('--naive', type=bool, default=True)
-parser.add_argument('--reset', type=bool, default=True)
+parser.add_argument('--method', type=str, default='ada')
+parser.add_argument('--reset',type=lambda x: (str(x).lower() == 'true'), default=False)
 
-parser.add_argument('--num_test_parts',type=int, default=5)
+parser.add_argument('--num_test_parts',type=int, default=7)
 parser.add_argument('--num_parts',type=int, default=40)
 parser.add_argument('--times',type=int, default=20)
 
@@ -29,11 +29,12 @@ parser.add_argument('--prune_epochs', type=int, default=250)
 parser.add_argument('--start_epochs', type=int, default=200)
 
 parser.add_argument('--num_workers', type=int, default=5)
-parser.add_argument('--ratio', type=float, default=0.998)
+parser.add_argument('--ratio', type=float, default=0.95)
 parser.add_argument('--prune_set',type=str, default='train')
 parser.add_argument('--dropout',type=float, default=0.5)
 parser.add_argument('--data_dir',type=str,default='./data/')
-
+parser.add_argument('--savept',type=lambda x: (str(x).lower() == 'true'), default=False)
+parser.add_argument('--globe',type=lambda x: (str(x).lower() == 'true'), default=False)
 args = parser.parse_args()
 
 ratio = args.ratio
@@ -45,13 +46,13 @@ start_epochs = args.start_epochs
 prune_epochs = args.prune_epochs
 prune_set = args.prune_set
 reset = args.reset
-naive = args.naive
+
 num_workers = args.num_workers
 model_n = args.model_n
 #logging.basicConfig(filename= f'./log/test_{ratio}_{times}_{num_parts}.log', encoding = 'utf-8',
 #                    level=logging.DEBUG)
 
-log_name = 'log/protein_numworker{}_model_{}_naive_{}_test_full_reset_{}_{}_{}_{}_{}_{}_{}.log'.format(num_workers,model_n,naive,num_parts,num_test_parts,ratio,start_epochs,prune_epochs,prune_set,reset)
+log_name = 'log/protein_{}_numworker{}_model_{}_method_{}_test_full_reset_{}_{}_{}_{}_{}_{}_{}.log'.format(args.globe,num_workers,model_n,args.method,num_parts,num_test_parts,ratio,start_epochs,prune_epochs,prune_set,reset)
 logger.add(log_name)
 logger.info('logname: {}'.format(log_name))
 logger.info('params: ratio {ratio}, times {times}, numparts {num_parts}, start epochs {start_epochs}, prune epochs {prune_epochs} ',
@@ -77,7 +78,7 @@ for split in ['train', 'valid', 'test']:
     data[f'{split}_mask'] = mask
 train_loader = RandomNodeSampler(data, num_parts=num_parts, shuffle=True,
                                   split_idx=splitted_idx, prune=True,prune_set=prune_set, num_workers=num_workers)
-test_loader = RandomNodeSampler(data, num_parts=5, num_workers=num_workers)
+test_loader = RandomNodeSampler(data, num_parts=8, num_workers=num_workers)
 
 recordloss = torch.zeros(data.num_nodes)
 
@@ -199,6 +200,7 @@ def train(epoch):
 
     total_loss = total_examples = 0
     for data in train_loader:
+        #print(data.edge_index.size())
         optimizer.zero_grad()
         data = data.to(device)
         out = model(data.x, data.edge_index, data.edge_attr)
@@ -286,8 +288,8 @@ for i in range(times):
     recloss = test(prune=True, epoch=0)
     #logger.info(f'ratio: {ratio}')
     del(test_loader)
-    train_loader.prune(recloss, ratio, naive=naive, savept=True)
-    test_loader = RandomNodeSampler(train_loader.data, num_edges=train_loader.data.edge_index.size(1), num_parts=num_parts, num_workers=num_workers)
+    train_loader.prune(recloss, ratio, method=args.method, savept=args.savept,globe=args.globe)
+    test_loader = RandomNodeSampler(train_loader.data, num_edges=train_loader.data.edge_index.size(1), num_parts=args.num_test_parts, num_workers=num_workers)
     if reset:
         model.reset()
         print('reset_done')

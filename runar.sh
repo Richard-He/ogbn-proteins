@@ -4,5 +4,4 @@ CUDA_VISIBLE_DEVICES=1 python original_arxiv.py \
 --prune_epoch=301  \
 --reset_param=False \
 --naive=False \
---data_dir=./data/ \
-/
+--data_dir=/data/yh3752/ \

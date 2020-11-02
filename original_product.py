@@ -16,8 +16,8 @@ parser = argparse.ArgumentParser(description='OGBN-Products (GAT)')
 parser.add_argument('--lr', type=float, default=0.01)
 
 parser.add_argument('--model', type=str, default='GAT')
-parser.add_argument('--naive', type=bool, default=True)
-parser.add_argument('--reset', type=bool, default=True)
+parser.add_argument('--naive',  action='store_true')
+parser.add_argument('--reset', action='store_true')
 
 parser.add_argument('--num_test_parts',type=int, default=5)
 parser.add_argument('--num_parts',type=int, default=40)

@@ -6,7 +6,7 @@ from tqdm import tqdm
 from torch_sparse import SparseTensor, spmm
 import logging
 from typing import List, Optional, Tuple, NamedTuple
-
+from torch_scatter import scatter
 
 class GraphSAINTSampler(torch.utils.data.DataLoader):
     r"""The GraphSAINT sampler base class from the `"GraphSAINT: Graph
@@ -103,35 +103,86 @@ class GraphSAINTSampler(torch.utils.data.DataLoader):
         adj, _ = self.adj.saint_subgraph(node_idx)
         return node_idx, adj
 
-    def prune(self, loss, ratio=0, naive=False):
-        if naive == False:
-            diff_loss = torch.abs(loss[self.train_edge_index[0]] - loss[self.train_edge_index[1]])
-            print(diff_loss.nonzero().size())
-            # print(int(len(diff_loss)*ratio))
-            # print(diff_loss)
-            _, mask = torch.topk(diff_loss, int(diff_loss.size(0)*ratio), largest=False)
-        else:
-            newE =self.train_edge_index.size(1)
-            mask = torch.randperm(newE)[:int(newE*ratio)]
-        # print(mask.size())
-        # mask = (diff_loss <= threshold)
-        # self.train_edge_index = self.train_edge_index[:,mask]
-        # edge_index = torch.cat([self.train_edge_index,self.rest_edge_index], dim=1)
-        # self.data.edge_index = edge_index
-        self.train_e_idx = self.train_e_idx[mask]
-        self.train_edge_index = self.train_edge_index[:, mask]
-        # print('train', self.train_edge_index.size())
-        self.data.edge_attr = self.data.edge_attr[torch.cat([self.train_e_idx, self.rest_e_idx])]
-        self.data.edge_index = self.data.edge_index[:,torch.cat([self.train_e_idx, self.rest_e_idx])]
-        # print(self.data.edge_attr.size(), self.data.edge_index.size())
-        self.train_e_idx = torch.arange(self.train_e_idx.size(0))
-        self.rest_e_idx = torch.arange(self.train_e_idx.size(0),self.train_e_idx.size(0) + self.rest_e_idx.size(0))
-        # print(len(self.train_e_idx),len(self.rest_e_idx), self.train_edge_index.size(),self.data.edge_index.size())
-        self.E = self.data.num_edges
-        self.adj = SparseTensor(
-            row=self.data.edge_index[0], col=self.data.edge_index[1],
-            value=torch.arange(self.E, device=self.data.edge_index.device),
-            sparse_sizes=(self.N, self.N)) 
+    def prune(self, loss, ratio=0, method='ada',glob=False):
+        if glob == False:
+            if method=='ada':
+                diff_loss = torch.abs(loss[self.train_edge_index[0]] - loss[self.train_edge_index[1]])
+                #print(diff_loss.nonzero().size())
+                # print(int(len(diff_loss)*ratio))
+                _, mask = torch.topk(diff_loss, int(len(diff_loss)*ratio), largest=False)
+            elif method=='random':
+                newE =self.train_edge_index.size(1)
+                mask = torch.randperm(newE)[:int(newE*ratio)]
+            elif method == 'naive':
+                degrees = scatter(torch.ones(self.train_edge_index.size(1)), self.train_edge_index[0])
+                thold = (degrees.max()*ratio).long()
+                prunemask = (degrees>thold).nonzero()
+                # print(prunemask)
+                mymask = torch.ones(self.train_edge_index.size(1))
+                taway = []
+                for pru in prunemask:
+                    p_eid = (self.train_edge_index[0]==pru).nonzero().squeeze()
+                    p = p_eid[torch.randperm(p_eid.size(0))][thold:]
+                    taway.append(p)
+                nonmask = torch.cat(taway)
+                mask = torch.ones(self.train_edge_index.size(1), dtype=torch.bool)
+                mask[nonmask] = False
+                    
+                    # print(mask.size())
+            # mask = (diff_loss <= threshold)
+            # self.train_edge_index = self.train_edge_index[:,mask]
+            # edge_index = torch.cat([self.train_edge_index,self.rest_edge_index], dim=1)
+            # self.data.edge_index = edge_index
+            self.train_e_idx = self.train_e_idx[mask]
+            self.train_edge_index = self.train_edge_index[:, mask]
+            # print('train', self.train_edge_index.size())
+            self.data.edge_attr = self.data.edge_attr[torch.cat([self.train_e_idx, self.rest_e_idx])]
+            self.data.edge_index = self.data.edge_index[:,torch.cat([self.train_e_idx, self.rest_e_idx])]
+            # print(self.data.edge_attr.size(), self.data.edge_index.size())
+            self.train_e_idx = torch.arange(self.train_e_idx.size(0))
+            self.rest_e_idx = torch.arange(self.train_e_idx.size(0),self.train_e_idx.size(0) + self.rest_e_idx.size(0))
+            # print(len(self.train_e_idx),len(self.rest_e_idx), self.train_edge_index.size(),self.data.edge_index.size())
+            self.E = self.data.num_edges
+            self.adj = SparseTensor(
+                row=self.data.edge_index[0], col=self.data.edge_index[1],
+                value=torch.arange(self.E, device=self.data.edge_index.device),
+                sparse_sizes=(self.N, self.N)) 
+
+
+
+
+
+
+
+    # def prune(self, loss, ratio=0, naive=False):
+    #     if naive == False:
+    #         diff_loss = torch.abs(loss[self.train_edge_index[0]] - loss[self.train_edge_index[1]])
+    #         print(diff_loss.nonzero().size())
+    #         # print(int(len(diff_loss)*ratio))
+    #         # print(diff_loss)
+    #         _, mask = torch.topk(diff_loss, int(diff_loss.size(0)*ratio), largest=False)
+    #     else:
+    #         newE =self.train_edge_index.size(1)
+    #         mask = torch.randperm(newE)[:int(newE*ratio)]
+    #     # print(mask.size())
+    #     # mask = (diff_loss <= threshold)
+    #     # self.train_edge_index = self.train_edge_index[:,mask]
+    #     # edge_index = torch.cat([self.train_edge_index,self.rest_edge_index], dim=1)
+    #     # self.data.edge_index = edge_index
+    #     self.train_e_idx = self.train_e_idx[mask]
+    #     self.train_edge_index = self.train_edge_index[:, mask]
+    #     # print('train', self.train_edge_index.size())
+    #     self.data.edge_attr = self.data.edge_attr[torch.cat([self.train_e_idx, self.rest_e_idx])]
+    #     self.data.edge_index = self.data.edge_index[:,torch.cat([self.train_e_idx, self.rest_e_idx])]
+    #     # print(self.data.edge_attr.size(), self.data.edge_index.size())
+    #     self.train_e_idx = torch.arange(self.train_e_idx.size(0))
+    #     self.rest_e_idx = torch.arange(self.train_e_idx.size(0),self.train_e_idx.size(0) + self.rest_e_idx.size(0))
+    #     # print(len(self.train_e_idx),len(self.rest_e_idx), self.train_edge_index.size(),self.data.edge_index.size())
+    #     self.E = self.data.num_edges
+    #     self.adj = SparseTensor(
+    #         row=self.data.edge_index[0], col=self.data.edge_index[1],
+    #         value=torch.arange(self.E, device=self.data.edge_index.device),
+    #         sparse_sizes=(self.N, self.N)) 
 
 
     def __collate__(self, data_list):
@@ -373,35 +424,50 @@ class NeighborSampler(torch.utils.data.DataLoader):
     #     num_edges = spmm(edge_index, values, 1, values.size)
         
 
-    def prune(self, loss, ratio=0, naive=False):
-        if naive == False:
-            diff_loss = torch.abs(loss[self.train_edge_index[0]] - loss[self.train_edge_index[1]])
-            #print(diff_loss.nonzero().size())
-            # print(int(len(diff_loss)*ratio))
-            _, mask = torch.topk(diff_loss, int(len(diff_loss)*ratio), largest=False)
-        else:
-            newE =self.train_edge_index.size(1)
-            mask = torch.randperm(newE)[:int(newE*ratio)]
-        #print('len diff_loss', len(diff_loss))
-        #print('len mask', len(mask))
-        # mask = (diff_loss < threshold)
-        # self.train_edge_index = self.train_edge_index[:,mask]
-        # edge_index = torch.cat([self.train_edge_index,self.rest_edge_index], dim=1)
-        # self.data.edge_index = edge_index
-        self.train_e_idx = self.train_e_idx[mask]
-        self.train_edge_index = self.train_edge_index[:, mask]
-        # self.edge_attr = self.data.edge_attr[torch.cat([self.train_e_idx, self.rest_e_idx])]
-        self.edge_index = self.edge_index[:,torch.cat([self.train_e_idx, self.rest_e_idx])]
+    def prune(self, loss, ratio=0, method='ada',glob=False):
+        if glob == False:
+            if method=='ada':
+                diff_loss = torch.abs(loss[self.train_edge_index[0]] - loss[self.train_edge_index[1]])
+                #print(diff_loss.nonzero().size())
+                # print(int(len(diff_loss)*ratio))
+                _, mask = torch.topk(diff_loss, int(len(diff_loss)*ratio), largest=False)
+            elif method=='random':
+                newE =self.train_edge_index.size(1)
+                mask = torch.randperm(newE)[:int(newE*ratio)]
+            elif method == 'naive':
+                degrees = scatter(torch.ones(self.train_edge_index.size(1)), self.train_edge_index[0])
+                thold = (degrees.max()*ratio).long()
+                prunemask = (degrees>thold).nonzero().squeeze()
+                mymask = torch.ones(self.train_edge_index.size(1))
+                taway = []
+                for pru in prunemask:
+                    p_eid = (self.train_edge_index[0]==pru).nonzero().squeeze()
+                    p = p_eid[torch.randperm(p_eid.size(0))][thold:]
+                    taway.append(p)
+                nonmask = torch.cat(taway)
+                mask = torch.ones(self.train_edge_index.size(1), dtype=torch.bool)
+                mask[nonmask] = False
+                    
+            #print('len diff_loss', len(diff_loss))
+            #print('len mask', len(mask))
+            # mask = (diff_loss < threshold)
+            # self.train_edge_index = self.train_edge_index[:,mask]
+            # edge_index = torch.cat([self.train_edge_index,self.rest_edge_index], dim=1)
+            # self.data.edge_index = edge_index
+            self.train_e_idx = self.train_e_idx[mask]
+            self.train_edge_index = self.train_edge_index[:, mask]
+            # self.edge_attr = self.data.edge_attr[torch.cat([self.train_e_idx, self.rest_e_idx])]
+            self.edge_index = self.edge_index[:,torch.cat([self.train_e_idx, self.rest_e_idx])]
 
-        # print(self.data.edge_attr.size(), self.data.edge_index.size())
-        self.train_e_idx = torch.arange(self.train_e_idx.size(0))
-        self.rest_e_idx = torch.arange(self.train_e_idx.size(0),self.train_e_idx.size(0) + self.rest_e_idx.size(0))
-        #print(len(self.train_e_idx),len(self.rest_e_idx), self.train_edge_index.size(),self.edge_index.size())
-        self.E = self.edge_index.size(1)
-        self.adj = SparseTensor(
-            row=self.edge_index[0], col=self.edge_index[1],
-            value=torch.arange(self.E, device=self.edge_index.device),
-            sparse_sizes=(self.N, self.N)) 
+            # print(self.data.edge_attr.size(), self.data.edge_index.size())
+            self.train_e_idx = torch.arange(self.train_e_idx.size(0))
+            self.rest_e_idx = torch.arange(self.train_e_idx.size(0),self.train_e_idx.size(0) + self.rest_e_idx.size(0))
+            #print(len(self.train_e_idx),len(self.rest_e_idx), self.train_edge_index.size(),self.edge_index.size())
+            self.E = self.edge_index.size(1)
+            self.adj = SparseTensor(
+                row=self.edge_index[0], col=self.edge_index[1],
+                value=torch.arange(self.E, device=self.edge_index.device),
+                sparse_sizes=(self.N, self.N)) 
     
     def sample(self, batch):
         if not isinstance(batch, torch.Tensor):
@@ -505,39 +571,118 @@ class RandomNodeSampler(torch.utils.data.DataLoader):
     def __getitem__(self, idx):
         return idx
 
-    def prune(self, loss, ratio, naive=False, savept=False):
-        #p_loss = loss[self.train_idx]
-        i = self.times
-        if naive== False:        
-            diff_loss = torch.abs(loss[self.train_edge_index[0]] - loss[self.train_edge_index[1]])
-            # print(diff_loss.nonzero().size())
-            # print(int(len(diff_loss)*ratio))
-            _, mask = torch.topk(diff_loss, int(len(diff_loss) * ratio), largest=False)
-        else:
-            newE =self.train_edge_index.size(1)
-            mask = torch.randperm(newE)[:int(newE * ratio)]
-        if savept==True:
-            torch.save(self.train_edge_index, f'./savept/edge_index_protein.pt')
-            # torch.save(mask1, f'./savept/p_smart_mask_prune_edges_{ratio ** i:.4f}.pt')
-            # torch.save(mask2, f'./savept/p_naive_mask_prune_edges_{ratio ** i:.4f}.pt')
-            torch.save(loss, f'./savept/p_loss_protein.pt')
-        # self.train_edge_index = self.train_edge_index[:,mask]
-        # edge_index = torch.cat([self.train_edge_index,self.rest_edge_index], dim=1)
-        # self.data.edge_index = edge_index
-        self.train_e_idx = self.train_e_idx[mask]
-        self.train_edge_index = self.train_edge_index[:, mask]
-        self.data.edge_attr = self.data.edge_attr[torch.cat([self.train_e_idx, self.rest_e_idx])]
-        self.data.edge_index = self.data.edge_index[:,torch.cat([self.train_e_idx, self.rest_e_idx])]
+    def prune(self, loss, ratio=0, method='ada',globe=False, savept=False):
+        if globe == False:
+            if method=='ada':
+                diff_loss = torch.abs(loss[self.train_edge_index[0]] - loss[self.train_edge_index[1]])
+                print(diff_loss.size(0))
+                #print(diff_loss.nonzero().size())
+                # print(int(len(diff_loss)*ratio))
+                _, mask = torch.topk(diff_loss, int(len(diff_loss)*ratio), largest=False)
+            elif method=='random':
+                newE =self.train_edge_index.size(1)
+                mask = torch.randperm(newE)[:int(newE*ratio)]
+            elif method == 'naive':
+                degrees = scatter(torch.ones(self.train_edge_index.size(1)), self.train_edge_index[0])
+                thold = (degrees.max()*ratio).long()
+                prunemask = (degrees>thold).nonzero().squeeze()
+                mymask = torch.ones(self.train_edge_index.size(1))
+                taway = []
+                for pru in prunemask:
+                    p_eid = (self.train_edge_index[0]==pru).nonzero().squeeze()
+                    p = p_eid[torch.randperm(p_eid.size(0))][thold:]
+                    taway.append(p)
+                nonmask = torch.cat(taway)
+                mask = torch.ones(self.train_edge_index.size(1), dtype=torch.bool)
+                mask[nonmask] = False
+                    
+           
+            self.train_e_idx = self.train_e_idx[mask]
+            self.train_edge_index = self.train_edge_index[:, mask]
+            # self.edge_attr = self.data.edge_attr[torch.cat([self.train_e_idx, self.rest_e_idx])]
+            self.edge_index = self.edge_index[:,torch.cat([self.train_e_idx, self.rest_e_idx])]
 
-        # print(self.data.edge_attr.size(), self.data.edge_index.size())
-        self.train_e_idx = torch.arange(self.train_e_idx.size(0))
-        self.rest_e_idx = torch.arange(self.train_e_idx.size(0),self.train_e_idx.size(0) + self.rest_e_idx.size(0))
-        # print(len(self.train_e_idx),len(self.rest_e_idx), self.train_edge_index.size(),self.data.edge_index.size())
-        self.E = self.data.num_edges
-        self.adj = SparseTensor(
+            # print(self.data.edge_attr.size(), self.data.edge_index.size())
+            self.train_e_idx = torch.arange(self.train_e_idx.size(0))
+            self.rest_e_idx = torch.arange(self.train_e_idx.size(0),self.train_e_idx.size(0) + self.rest_e_idx.size(0))
+            print('len',len(self.train_e_idx),len(self.rest_e_idx), self.train_edge_index.size(),self.edge_index.size())
+            self.data.edge_attr = self.data.edge_attr[torch.cat([self.train_e_idx, self.rest_e_idx])]
+            self.data.edge_index = self.data.edge_index[:,torch.cat([self.train_e_idx, self.rest_e_idx])]
+            self.E = self.edge_index.size(1)
+            self.adj = SparseTensor(
+                row=self.edge_index[0], col=self.edge_index[1],
+                value=torch.arange(self.E, device=self.edge_index.device),
+                sparse_sizes=(self.N, self.N)) 
+            # if savept==True:
+            #     torch.save(self.train_edge_index, f'./savept/edge_index_protein.pt')
+            #     # torch.save(mask1, f'./savept/p_smart_mask_prune_edges_{ratio ** i:.4f}.pt')
+            #     # torch.save(mask2, f'./savept/p_naive_mask_prune_edges_{ratio ** i:.4f}.pt')
+            #     torch.save(loss, f'./savept/p_loss_protein.pt')
+           
+        else:
+            if method == 'random':
+                mask = torch.randperm(self.E)[:int(self.E*ratio)]
+            elif method == 'naive':
+                degrees = scatter(torch.ones(self.data.edge_index.size(1)), self.data.edge_index[0])
+                thold = (degrees.max()*ratio).long()
+                prunemask = (degrees>thold).nonzero().squeeze()
+                mymask = torch.ones(self.data.edge_index.size(1))
+                taway = []
+                for pru in prunemask:
+                    p_eid = (self.data.edge_index[0]==pru).nonzero().squeeze()
+                    p = p_eid[torch.randperm(p_eid.size(0))][thold:]
+                    taway.append(p)
+                nonmask = torch.cat(taway)
+                mask = torch.ones(self.data.edge_index.size(1), dtype=torch.bool)
+                mask[nonmask] = False
+
+            self.data.edge_index = self.data.edge_index[:,mask]
+            self.data.edge_attr = self.data.edge_attr[mask]
+            self.E = mask.size(0)
+            self.adj = SparseTensor(
             row=self.data.edge_index[0], col=self.data.edge_index[1],
             value=torch.arange(self.E, device=self.data.edge_index.device),
             sparse_sizes=(self.N, self.N)) 
+    
+    
+    
+    
+    
+
+    
+    # def prune(self, loss, ratio, naive=False,cutoff=False, savept=False, random=False):
+    #     #p_loss = loss[self.train_idx]
+    #     i = self.times
+    #     if naive== False:        
+    #         diff_loss = torch.abs(loss[self.train_edge_index[0]] - loss[self.train_edge_index[1]])
+    #         # print(diff_loss.nonzero().size())
+    #         # print(int(len(diff_loss)*ratio))
+    #         _, mask = torch.topk(diff_loss, int(len(diff_loss) * ratio), largest=False)
+    #     else:
+    #         newE =self.train_edge_index.size(1)
+    #         mask = torch.randperm(newE)[:int(newE * ratio)]
+    #     if savept==True:
+    #         torch.save(self.train_edge_index, f'./savept/edge_index_protein.pt')
+    #         # torch.save(mask1, f'./savept/p_smart_mask_prune_edges_{ratio ** i:.4f}.pt')
+    #         # torch.save(mask2, f'./savept/p_naive_mask_prune_edges_{ratio ** i:.4f}.pt')
+    #         torch.save(loss, f'./savept/p_loss_protein.pt')
+    #     # self.train_edge_index = self.train_edge_index[:,mask]
+    #     # edge_index = torch.cat([self.train_edge_index,self.rest_edge_index], dim=1)
+    #     # self.data.edge_index = edge_index
+    #     self.train_e_idx = self.train_e_idx[mask]
+    #     self.train_edge_index = self.train_edge_index[:, mask]
+    #     self.data.edge_attr = self.data.edge_attr[torch.cat([self.train_e_idx, self.rest_e_idx])]
+    #     self.data.edge_index = self.data.edge_index[:,torch.cat([self.train_e_idx, self.rest_e_idx])]
+
+    #     # print(self.data.edge_attr.size(), self.data.edge_index.size())
+    #     self.train_e_idx = torch.arange(self.train_e_idx.size(0))
+    #     self.rest_e_idx = torch.arange(self.train_e_idx.size(0),self.train_e_idx.size(0) + self.rest_e_idx.size(0))
+    #     # print(len(self.train_e_idx),len(self.rest_e_idx), self.train_edge_index.size(),self.data.edge_index.size())
+    #     self.E = self.data.num_edges
+    #     self.adj = SparseTensor(
+    #         row=self.data.edge_index[0], col=self.data.edge_index[1],
+    #         value=torch.arange(self.E, device=self.data.edge_index.device),
+    #         sparse_sizes=(self.N, self.N)) 
     
     def __collate__(self, node_idx):
         node_idx = node_idx[0]
