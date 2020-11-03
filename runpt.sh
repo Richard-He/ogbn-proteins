@@ -1,12 +1,12 @@
 CUDA_VISIBLE_DEVICES=0 python original_protein.py \
---ratio=0.95 \
---start_epochs=1 \
---prune_epochs=1800 \
+--ratio=0.99 \
+--start_epochs=900 \
+--prune_epochs=400 \
 --prune_set=train  \
 --num_workers=2 \
 --times=20 \
 --method=ada  \
 --globe=False \
---reset=True \
---model_n=deepgcn  \
+--reset=False \
+--model_n=sage  \
 --data_dir=./data/

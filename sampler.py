@@ -638,7 +638,7 @@ class RandomNodeSampler(torch.utils.data.DataLoader):
 
             self.data.edge_index = self.data.edge_index[:,mask]
             self.data.edge_attr = self.data.edge_attr[mask]
-            self.E = mask.size(0)
+            self.E = self.data.edge_index.size(1)
             self.adj = SparseTensor(
             row=self.data.edge_index[0], col=self.data.edge_index[1],
             value=torch.arange(self.E, device=self.data.edge_index.device),

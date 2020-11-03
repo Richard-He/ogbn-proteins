@@ -15,14 +15,14 @@ import argparse
 
 
 parser = argparse.ArgumentParser(description='OGBN-Products (GAT)')
-parser.add_argument('--lr', type=float, default=0.001)
+parser.add_argument('--lr', type=float, default=0.01)
 
 parser.add_argument('--model_n', type=str, default='deepgcn')
 parser.add_argument('--method', type=str, default='ada')
 parser.add_argument('--reset',type=lambda x: (str(x).lower() == 'true'), default=False)
 
-parser.add_argument('--num_test_parts',type=int, default=7)
-parser.add_argument('--num_parts',type=int, default=40)
+parser.add_argument('--num_test_parts',type=int, default=5)
+parser.add_argument('--num_parts',type=int, default=15)
 parser.add_argument('--times',type=int, default=20)
 
 parser.add_argument('--prune_epochs', type=int, default=250)
