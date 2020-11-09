@@ -154,17 +154,17 @@ class GAT(torch.nn.Module):
 
 class GCN(torch.nn.Module):
     def __init__(self, in_channels, hidden_channels, out_channels, num_layers,
-                 dropout=0.5):
+                 dropout=0.4):
         super(GCN, self).__init__()
 
         self.convs = torch.nn.ModuleList()
         self.convs.append(
-            GCNConv(in_channels, hidden_channels, normalize=False))
+            GCNConv(in_channels, hidden_channels))
         for _ in range(num_layers - 2):
             self.convs.append(
-                GCNConv(hidden_channels, hidden_channels, normalize=False))
+                GCNConv(hidden_channels, hidden_channels))
         self.convs.append(
-            GCNConv(hidden_channels, out_channels, normalize=False))
+            GCNConv(hidden_channels, out_channels))
 
         self.dropout = dropout
 
@@ -172,30 +172,14 @@ class GCN(torch.nn.Module):
         for conv in self.convs:
             conv.reset_parameters()
 
-    def forward(self, x, adj_t):
+    def forward(self, x, edge_index, edge_attr):
+        adj_t = edge_index
         for conv in self.convs[:-1]:
             x = conv(x, adj_t)
             x = F.relu(x)
             x = F.dropout(x, p=self.dropout, training=self.training)
         x = self.convs[-1](x, adj_t)
         return x
-    
-    def inference(self, x_all):
-
-        for i, conv in enumerate(self.convs):
-            xs = []
-            for batch_size, n_id, adj in subgraph_loader:
-                edge_index, _, size = adj.to(device)
-                x = x_all[n_id].to(device)
-                x_target = x[:size[1]]
-                x = conv((x, x_target), edge_index)
-                if i != len(self.convs) - 1:
-                    x = F.relu(x)
-                xs.append(x.cpu())
-            x_all = torch.cat(xs, dim=0)
-
-
-        return x_all
 
 
 class SAGE(torch.nn.Module):

@@ -600,11 +600,11 @@ class RandomNodeSampler(torch.utils.data.DataLoader):
             self.edge_index = self.edge_index[:,torch.cat([self.train_e_idx, self.rest_e_idx])]
 
             # print(self.data.edge_attr.size(), self.data.edge_index.size())
-            self.train_e_idx = torch.arange(self.train_e_idx.size(0))
-            self.rest_e_idx = torch.arange(self.train_e_idx.size(0),self.train_e_idx.size(0) + self.rest_e_idx.size(0))
             print('len',len(self.train_e_idx),len(self.rest_e_idx), self.train_edge_index.size(),self.edge_index.size())
             self.data.edge_attr = self.data.edge_attr[torch.cat([self.train_e_idx, self.rest_e_idx])]
             self.data.edge_index = self.data.edge_index[:,torch.cat([self.train_e_idx, self.rest_e_idx])]
+            self.train_e_idx = torch.arange(self.train_e_idx.size(0))
+            self.rest_e_idx = torch.arange(self.train_e_idx.size(0),self.train_e_idx.size(0) + self.rest_e_idx.size(0))
             self.E = self.edge_index.size(1)
             self.adj = SparseTensor(
                 row=self.edge_index[0], col=self.edge_index[1],
