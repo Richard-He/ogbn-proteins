@@ -424,10 +424,11 @@ class NeighborSampler(torch.utils.data.DataLoader):
     #     num_edges = spmm(edge_index, values, 1, values.size)
         
 
-    def prune(self, loss, ratio=0, method='ada',glob=False):
+    def prune(self, loss, ratio=0, method='ada', glob=False):
         if glob == False:
             if method=='ada':
                 diff_loss = torch.abs(loss[self.train_edge_index[0]] - loss[self.train_edge_index[1]])
+                print(diff_loss.size(0))
                 #print(diff_loss.nonzero().size())
                 # print(int(len(diff_loss)*ratio))
                 _, mask = torch.topk(diff_loss, int(len(diff_loss)*ratio), largest=False)
@@ -437,11 +438,11 @@ class NeighborSampler(torch.utils.data.DataLoader):
             elif method == 'naive':
                 degrees = scatter(torch.ones(self.train_edge_index.size(1)), self.train_edge_index[0])
                 thold = (degrees.max()*ratio).long()
-                prunemask = (degrees>thold).nonzero().squeeze()
+                prunemask = (degrees>thold).nonzero()
                 mymask = torch.ones(self.train_edge_index.size(1))
                 taway = []
                 for pru in prunemask:
-                    p_eid = (self.train_edge_index[0]==pru).nonzero().squeeze()
+                    p_eid = (self.train_edge_index[0]==pru.squeeze()).nonzero().squeeze()
                     p = p_eid[torch.randperm(p_eid.size(0))][thold:]
                     taway.append(p)
                 nonmask = torch.cat(taway)
@@ -450,10 +451,6 @@ class NeighborSampler(torch.utils.data.DataLoader):
                     
             #print('len diff_loss', len(diff_loss))
             #print('len mask', len(mask))
-            # mask = (diff_loss < threshold)
-            # self.train_edge_index = self.train_edge_index[:,mask]
-            # edge_index = torch.cat([self.train_edge_index,self.rest_edge_index], dim=1)
-            # self.data.edge_index = edge_index
             self.train_e_idx = self.train_e_idx[mask]
             self.train_edge_index = self.train_edge_index[:, mask]
             # self.edge_attr = self.data.edge_attr[torch.cat([self.train_e_idx, self.rest_e_idx])]
@@ -462,7 +459,7 @@ class NeighborSampler(torch.utils.data.DataLoader):
             # print(self.data.edge_attr.size(), self.data.edge_index.size())
             self.train_e_idx = torch.arange(self.train_e_idx.size(0))
             self.rest_e_idx = torch.arange(self.train_e_idx.size(0),self.train_e_idx.size(0) + self.rest_e_idx.size(0))
-            #print(len(self.train_e_idx),len(self.rest_e_idx), self.train_edge_index.size(),self.edge_index.size())
+            # print(len(self.train_e_idx),len(self.rest_e_idx), self.train_edge_index.size(),self.edge_index.size())
             self.E = self.edge_index.size(1)
             self.adj = SparseTensor(
                 row=self.edge_index[0], col=self.edge_index[1],
@@ -585,11 +582,11 @@ class RandomNodeSampler(torch.utils.data.DataLoader):
             elif method == 'naive':
                 degrees = scatter(torch.ones(self.train_edge_index.size(1)), self.train_edge_index[0])
                 thold = (degrees.max()*ratio).long()
-                prunemask = (degrees>thold).nonzero().squeeze()
+                prunemask = (degrees>thold).nonzero()
                 mymask = torch.ones(self.train_edge_index.size(1))
                 taway = []
                 for pru in prunemask:
-                    p_eid = (self.train_edge_index[0]==pru).nonzero().squeeze()
+                    p_eid = (self.train_edge_index[0]==pru.squeeze()).nonzero().squeeze()
                     p = p_eid[torch.randperm(p_eid.size(0))][thold:]
                     taway.append(p)
                 nonmask = torch.cat(taway)

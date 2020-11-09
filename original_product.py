@@ -16,13 +16,13 @@ parser = argparse.ArgumentParser(description='OGBN-Products (GAT)')
 parser.add_argument('--lr', type=float, default=0.01)
 
 parser.add_argument('--model', type=str, default='GAT')
-parser.add_argument('--naive',  action='store_true')
-parser.add_argument('--reset', action='store_true')
+parser.add_argument('--method', type=str, default='ada')
+parser.add_argument('--reset',type=lambda x: (str(x).lower() == 'true'), default=False)
 
 parser.add_argument('--num_test_parts',type=int, default=5)
 parser.add_argument('--num_parts',type=int, default=40)
 parser.add_argument('--times',type=int, default=15)
-
+parser.add_argument('--globe',type=lambda x: (str(x).lower() == 'true'), default=False)
 parser.add_argument('--prune_epochs', type=int, default=100)
 parser.add_argument('--start_epochs', type=int, default=100)
 
@@ -47,12 +47,12 @@ start_epochs = args.start_epochs
 prune_epochs = args.prune_epochs
 #200
 prune_set = args.prune_set
-naive = args.naive
+method = args.method
 reset = args.reset
 model = args.model
 
 num_workers = 0
-log_name = 'log/product_numworkers_{}_naive_{}_test_{}_{}_{}_{}_{}_{}_{}_{}.log'.format(num_workers,naive,batch_size,test_size,ratio,start_epochs,prune_epochs,prune_set,reset,model)
+log_name = 'log/product_numworkers_{}method{}_test_{}_{}_{}_{}_{}_{}_{}_{}.log'.format(num_workers,method,batch_size,test_size,ratio,start_epochs,prune_epochs,prune_set,reset,model)
 logger.add(log_name)
 logger.info('logname: {}'.format(log_name))
 logger.info('params: ratio {ratio}, times {times}, batch size {num_parts}, start epochs {start_epochs}, prune epochs {prune_epochs} ',
@@ -78,11 +78,11 @@ recordloss = torch.zeros(data.num_nodes)
 
 class GAT(torch.nn.Module):
     def __init__(self, in_channels, hidden_channels, out_channels, num_layers,
-                 heads):
+                 heads,dropout=0.5):
         super(GAT, self).__init__()
 
         self.num_layers = num_layers
-
+        self.dropout = dropout
         self.convs = torch.nn.ModuleList()
         self.convs.append(GATConv(dataset.num_features, hidden_channels,
                                   heads))
@@ -119,7 +119,7 @@ class GAT(torch.nn.Module):
             x = x + self.skips[i](x_target)
             if i != self.num_layers - 1:
                 x = F.elu(x)
-                x = F.dropout(x, p=0.5, training=self.training)
+                x = F.dropout(x, p=self.dropout, training=self.training)
         return x.log_softmax(dim=-1)
 
     def inference(self, x_all):
@@ -381,7 +381,7 @@ for i in range(times):
     ttratio.append(ratio**(i+1))
     #logger.info(f'ratio: {ratio}')
     del(subgraph_loader)
-    train_loader.prune(recordloss, ratio, naive=naive)
+    train_loader.prune(recordloss, ratio, method=method)
     subgraph_loader = NeighborSampler(train_loader.edge_index, node_idx=None, sizes=[-1],
                                   batch_size=1024, shuffle=False,
                                   num_workers=num_workers)

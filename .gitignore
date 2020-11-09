@@ -6,3 +6,4 @@ log*
 dataset/
 savept/
 *.out
+old.py

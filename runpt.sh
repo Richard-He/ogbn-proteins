@@ -1,6 +1,6 @@
-CUDA_VISIBLE_DEVICES=0 python original_protein.py \
---ratio=0.99 \
---start_epochs=900 \
+CUDA_VISIBLE_DEVICES=1 python original_protein.py \
+--ratio=0.999 \
+--start_epochs=800 \
 --prune_epochs=400 \
 --prune_set=train  \
 --num_workers=2 \
@@ -8,5 +8,5 @@ CUDA_VISIBLE_DEVICES=0 python original_protein.py \
 --method=ada  \
 --globe=False \
 --reset=False \
---model_n=sage  \
+--model_n=deepgcn  \
 --data_dir=./data/

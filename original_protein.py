@@ -22,7 +22,7 @@ parser.add_argument('--method', type=str, default='ada')
 parser.add_argument('--reset',type=lambda x: (str(x).lower() == 'true'), default=False)
 
 parser.add_argument('--num_test_parts',type=int, default=5)
-parser.add_argument('--num_parts',type=int, default=15)
+parser.add_argument('--num_parts',type=int, default=30)
 parser.add_argument('--times',type=int, default=20)
 
 parser.add_argument('--prune_epochs', type=int, default=250)
